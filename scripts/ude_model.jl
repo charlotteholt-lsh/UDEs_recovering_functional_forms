@@ -25,7 +25,7 @@ DEFINE HYPERPARAMETERS
 =========================================================#
 
 # Define strings for file names and directory for results
-sim_name ="synthesised_MA"
+sim_name ="synthesised_MA_hidden_dims_10"
 model_name = "ude"
 if !isdir(datadir("sims", model_name, sim_name)) 
 	mkpath(datadir("sims", model_name, sim_name))
@@ -36,8 +36,9 @@ end
 const train_length = 123
 const maxiters = 2500
 # set the number of hidden dimensions in the neural network equal to 3
-hidden_dims = 3
-n_sims = 10
+hidden_dims = 10
+# do 100 simulations 
+n_sims = 100
 
 #========================================================
 LOAD DATA
@@ -100,7 +101,7 @@ tspan = [0, train_length]
 # Create neural network to estimate the transmission rate:
 # We have two hidden layers with hidden_dims neurons and gelu activation function
 # We are taking t and I(t) as inputs and outputting beta(t)
-beta_network = Lux.Chain(Lux.Dense(2=>hidden_dims, gelu), Lux.Dense(hidden_dims=>hidden_dims, gelu),
+beta_network = Lux.Chain(Lux.Dense(1=>hidden_dims, gelu), Lux.Dense(hidden_dims=>hidden_dims, gelu),
                          Lux.Dense(hidden_dims=>1, softplus))
 
 # Initialise parameters to build the structure fo the UDE
@@ -127,7 +128,7 @@ function seird_nn!(du, u, p, t)
     tmax = 123
 
     # Use normalised inputs for the neural network
-    nn_input = [I/N, t/tmax]
+    nn_input = [delta*I]
 
     # Evaluate neural network and extract scalar
     beta = beta_network(nn_input, p.nn_params, st_nn)[1][1]
@@ -152,25 +153,15 @@ function predict_ude(p_all)
     prob = remake(prob_ude, p = p_all)
     sol_ude = solve(prob, Tsit5(), saveat=1.0, dense = false)
 
+    
     D_pred = [sol_ude.u[i][5] for i in 1:train_length]
     daily_deaths_pred = [0.0; diff(D_pred)]
 
     return daily_deaths_pred
 end
 
-# Loss function using NLL with L2 regularisation.
-function loss_ude(p_all, _)
-    pred = predict_ude(p_all)
-
-    # Poisson negative log-likelihood
-    ε = 1e-6
-    nll = sum(pred .- data .* log.(pred .+ ε))
-
-    # L2 penalty on NN weights (regularisation)
-   #l2_penalty = 1e-4 * sum(abs2, p_all.nn_params)
-
-    return nll , pred
-end
+# Call the loss functions
+using .Functions
 
 #========================================================
 TRAINING
@@ -214,6 +205,8 @@ function train_ude(p; maxiters = maxiters, halt_condition = l -> false)
             best_p = p
         end
 
+#========================================================
+RUN WITHOUT PLOTTING
         if iter % 50 == 0
             display("Total loss: $l")
             x = days[1:length(pred)]
@@ -222,6 +215,8 @@ function train_ude(p; maxiters = maxiters, halt_condition = l -> false)
             plot!(pl, x, pred, color=:red, linewidth=2, label="Prediction")
             display(pl)
 		end	
+=========================================================# 
+
 
         # Update parameters using the gradient
         optimised_state, p = Optimisers.update(optimised_state, p, grad)
