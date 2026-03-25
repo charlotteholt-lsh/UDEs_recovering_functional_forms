@@ -78,8 +78,8 @@ function plot_simulation(sim_name, plot_title)
 end
 
 
-sim_name = "synthesised_MA_hidden_dims_10"
-plot_title = "Predictions with 10 neurons per NN layer (only 14 sims)"
+sim_name = "synthesised_MA_hidden_dims_5"
+plot_title = "Predictions with 5 neurons per NN layer"
 plot_simulation(sim_name, plot_title)
 
 
