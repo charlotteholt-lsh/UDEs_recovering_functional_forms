@@ -25,7 +25,7 @@ DEFINE HYPERPARAMETERS
 =========================================================#
 
 # Define strings for file names and directory for results
-sim_name ="synthesised_MA_hidden_dims_10"
+sim_name ="synthesised_MA__input_death_time_hidden_dims_5_RB_solve_no_param_check"
 model_name = "ude"
 if !isdir(datadir("sims", model_name, sim_name)) 
 	mkpath(datadir("sims", model_name, sim_name))
@@ -36,7 +36,7 @@ end
 const train_length = 123
 const maxiters = 2500
 # set the number of hidden dimensions in the neural network equal to 3
-hidden_dims = 10
+hidden_dims = 5
 # do 100 simulations 
 n_sims = 100
 
@@ -101,7 +101,7 @@ tspan = [0, train_length]
 # Create neural network to estimate the transmission rate:
 # We have two hidden layers with hidden_dims neurons and gelu activation function
 # We are taking t and I(t) as inputs and outputting beta(t)
-beta_network = Lux.Chain(Lux.Dense(1=>hidden_dims, gelu), Lux.Dense(hidden_dims=>hidden_dims, gelu),
+beta_network = Lux.Chain(Lux.Dense(2=>hidden_dims, gelu), Lux.Dense(hidden_dims=>hidden_dims, gelu),
                          Lux.Dense(hidden_dims=>1, softplus))
 
 # Initialise parameters to build the structure fo the UDE
@@ -127,8 +127,8 @@ function seird_nn!(du, u, p, t)
     # Evaluate beta(t) using the neural network
     tmax = 123
 
-    # Use normalised inputs for the neural network
-    nn_input = [delta*I]
+    # Define inputs for NN
+    nn_input = [delta*I,t]
 
     # Evaluate neural network and extract scalar
     beta = beta_network(nn_input, p.nn_params, st_nn)[1][1]
@@ -151,7 +151,7 @@ PREDICTION AND LOSS FUNCTIONS
 function predict_ude(p_all)
     
     prob = remake(prob_ude, p = p_all)
-    sol_ude = solve(prob, Tsit5(), saveat=1.0, dense = false)
+    sol_ude = solve(prob, Rosenbrock23(), saveat=1.0, dense = false)
 
     
     D_pred = [sol_ude.u[i][5] for i in 1:train_length]
@@ -254,7 +254,7 @@ function run_model()
     # Make sure to start with a stable parameterization
     l_init = loss_ude(p_init, nothing)[1]
     println("Initial loss: $l_init")
-	while abs(l_init)> 1e4
+	while l_init > 1e4
 		println("Unstable initial parameterization. Restarting..., $l_init")
         # Initialise parameters
         p, st = Lux.setup(rng, beta_network)
@@ -278,7 +278,7 @@ function run_model()
 
     # Evaluate final long term results 
     long_term_prob= remake(prob_ude, p = p_trained, tspan = (0.0, 3*365.0))
-    long_term_pred = solve(long_term_prob, Tsit5(), saveat=1, dense = false)
+    long_term_pred = solve(long_term_prob, Rosenbrock23(), saveat=1, dense = false)
 
     region = "Massachusetts"
     param_name = hidden_dims

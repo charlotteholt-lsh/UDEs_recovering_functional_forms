@@ -1,2 +1,4 @@
 data/sims/
 .DS_Store
+scripts/plot_together.jl
+scripts/figures/
