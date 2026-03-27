@@ -7,6 +7,7 @@
 - Phase 2: Investigate what training conditions improve performance of the framework, and how little data or noisy the data can be for the UDE to successfully recover the behavioural dynamics?
 
 **Background**
+
 In contrast to statistical models, that primarily aim to fit the observed data well, mechanistic models aim to mathematically represent the dynamic behaviour within a system by using known physical, biological or chemical laws. In the context of infectious disease forecasting, mechanistic models are used to explain how and why a disease is spreading. There is the opportunity to integrate machine learning into mechanistic models, retaining the mechanistic structure of the system but enabling the model to use multiple data streams and big data to improve the accuracy of its prediction [10].
 
 Attempts to integrate machine learning into epidemiological forecasting include using physics-informed neural networks (PINNs), epidemiology-aware AI models (EAAMs), synthetically-trained AI models, and AI-augmented epidemiological models [10]. Neural networks have been used to leverage the vast amounts of historical data at later stages of tan epidemic to estimate the epidemiological parameters which are then used in the model predictions [3]. _add more examples here_
