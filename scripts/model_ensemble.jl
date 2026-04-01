@@ -9,9 +9,13 @@ cd(@__DIR__)
 using DrWatson
 @quickactivate("UDE_FUNCTIONAL_FORMS")
 using .Functions
+using JLD2
+using Plots
 using Statistics
 using StatsBase
 using Distributions
+using ComponentArrays
+using DataFrames
 
 #=============================================================
 FUNCTION TO GENERATE PLOTS OF SIMULATIONS
@@ -24,6 +28,7 @@ function plot_simulation(sim_name, plot_title)
     # Just use data with strongest behavioural response (zeta = 0.02)
     df = dataset["df"]
     obs = df[!, "y_zeta_0.02"]
+    days = df[!, "days"]
 
     # Define the root file path
     root = datadir("sims", "ude", sim_name)
@@ -37,7 +42,7 @@ function plot_simulation(sim_name, plot_title)
             results = load(datadir("sims", "ude", sim_name, filename, "results.jld2"))
             pred = results["prediction"]
             # Extract the predicted mortalities for the training data
-            D_pred = pred[5, 1:train_length]
+            D_pred = pred[5, 1:length(obs)]
             daily_deaths_pred = [0.0; diff(D_pred)]
             push!(all_predictions, daily_deaths_pred)
         end
@@ -60,7 +65,10 @@ function plot_simulation(sim_name, plot_title)
     lower_quantile = [quantile(view(prediction_matrix, :, j), 0.25) for j in axes(prediction_matrix, 2)]
 
     # Evaluate MSE using the median
-    mse = loss_mse(median_prediction, obs)
+    mse = Functions.loss_mse(median_prediction, obs)
+
+    # Save to a JLD2 file
+    save(datadir("sims", "ude", sim_name, "summary.jld2"), "median_prediction", median_prediction, "upper_quantile", upper_quantile, "lower_quantile", lower_quantile, "mse", mse)
 
     # Create plot
     x = days[1:length(prediction_matrix[1, :])]
@@ -78,8 +86,8 @@ function plot_simulation(sim_name, plot_title)
 end
 
 
-sim_name = "synthesised_MA_hidden_dims_5"
-plot_title = "Predictions with 5 neurons per NN layer"
+sim_name = "synthesised_MA_input_death_time_hidden_dims_5_RB_solve_no_param_check"
+plot_title = "Optimal prediction 250326"
 plot_simulation(sim_name, plot_title)
 
 
