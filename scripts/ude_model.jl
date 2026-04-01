@@ -13,11 +13,8 @@ using ComponentArrays
 using DataFrames
 using DiffEqFlux, Zygote
 using Optimisers
-# using Optimization, OptimizationOptimJL, OptimizationFlux, OptimizationPolyalgorithms
 using DifferentialEquations
-# using LinearAlgebra
 using Plots
-# using Statistics, Distributions
 using Random; rng = Random.default_rng()
 
 #========================================================
@@ -104,7 +101,7 @@ tspan = [0, train_length]
 beta_network = Lux.Chain(Lux.Dense(2=>hidden_dims, gelu), Lux.Dense(hidden_dims=>hidden_dims, gelu),
                          Lux.Dense(hidden_dims=>1, softplus))
 
-# Initialise parameters to build the structure fo the UDE
+# Initialise parameters to build the structure for the UDE
 p_nn_temp, st_nn = Lux.setup(rng, beta_network)
 
 # Convert to ComponentArray for gradient-based optimisation
