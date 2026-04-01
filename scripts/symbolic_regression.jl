@@ -263,10 +263,6 @@ beta_recovered_on_true = [nn_res([delta * I], nn_params, t)[1] for (I, t) in zip
 
 # Do relative to their own trajectories for comparison
 
-# True beta from the true ODE trajectory (no SINDY dynamics)
-D_true = pred_true[5, :]
-beta_true = true_beta.(D_true)
-
 # Beta learned by the trained NN on the NN approximation
 beta_nn = vec(y_hat) 
 
