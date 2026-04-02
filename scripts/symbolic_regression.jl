@@ -129,16 +129,9 @@ nn_res = DataDrivenDiffEq.solve(nn_problem, basis, opt, options=options)
 
 nn_eqs = DataDrivenDiffEq.get_basis(nn_res)
 nn_params = DataDrivenDiffEq.get_parameter_values(nn_eqs)
-println(nn_res)
-println(nn_eqs)
-println(nn_params)
-
-
-#=============================================================
-PLOT THE RESULTS
-=============================================================#
-
-
+#println(nn_res)
+# println(nn_eqs)
+#println(nn_params)
 
 #=============================================================
 DEFINE INITAL STATE AND PARAMETERS
@@ -269,9 +262,11 @@ beta_nn = vec(y_hat)
 # Recovered beta evaluated along the SINDy approximation
 beta_recovered = [nn_res([delta*I], nn_params, t)[1] for (I, t) in zip(pred_sindy[3, :], pred_sindy.t)]
 
+#=============================================================
+PLOT RESULTS
+=============================================================#
 
-# Plot the results against the observed data
-
+# Plot predicted trajectories (UDE and SINDy model) against the observed data
 p1 = plot(days, obs, label="Observed data", lw=2)
 plot!(p1, days, daily_deaths_nn, label="NN trajectory", lw=2, ls=:dot)
 plot!(p1, pred_sindy.t, daily_deaths_sindy, label="SINDY prediction", lw=2, ls=:dash)
@@ -283,6 +278,7 @@ mse_nn = Functions.loss_mse(daily_deaths_nn, obs)
 annotate!(p1, days[end], maximum(obs), text("MSE SINDY: $(round(mse_sindy, digits=4))", 9, :right))
 annotate!(p1, days[end], maximum(obs) * 0.9, text("MSE NN: $(round(mse_nn, digits=4))", 9, :right))
 
+# Plot the beta trajectories evaluated against their respective predicted/observed trajectories
 p2 = plot(days, beta_true, label="True β from true ODE I(t)", lw=2)
 plot!(p2, days, beta_nn, label="NN-learned β on I(t) learned by NN", lw=2, ls=:dot)
 plot!(p2, days, beta_recovered, label="Recovered β on recovered ODE I(t)", lw=2, ls=:dash)
@@ -290,6 +286,7 @@ xlabel!(p2, "Day")
 ylabel!(p2, "β")
 title!(p2, "Transmission rate using synthesised/learned/recovered I(t) respective to their own trajectories")
 
+# Plot the beta trajectories evaluated against the observed trajectory
 p3 = plot(days, beta_true, label="True β from true ODE I(t)", lw=2)
 plot!(p3, days, beta_nn_on_true, label="NN-learned β on true ODE I(t)", lw=2, ls=:dot)
 plot!(p3, days, beta_recovered_on_true, label="Recovered β on true ODE I(t)", lw=2, ls=:dash)
@@ -297,4 +294,7 @@ xlabel!(p3, "Day")
 ylabel!(p3, "β")
 title!(p3, "Transmission rate using true-system I(t)")
 
-plot(p1, p2, p3, layout=(3, 1), size=(900, 1050))
+pl = plot(p1, p2, p3, layout=(3, 1), size=(900, 1050))
+
+# Save the plot
+savefig(pl, joinpath(@__DIR__, "figures", "initial_sindy_attempt_lowest_MSE_trajectory_optimal_HP_250326.png"))           
