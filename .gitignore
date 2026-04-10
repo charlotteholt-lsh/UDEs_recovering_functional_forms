@@ -1,4 +1,5 @@
 data/sims/
+data/synthesised_trajectories/
 .DS_Store
 scripts/plot_together.jl
 scripts/figures/
