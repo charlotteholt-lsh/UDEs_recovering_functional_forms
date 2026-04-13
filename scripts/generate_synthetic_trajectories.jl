@@ -37,7 +37,7 @@ function moving_average(x)
 end
 
 # Build the file name for simulation
-function sim_name(fixed_p, estimated_p)
+function file_name(fixed_p, estimated_p)
     params = (
         pop  = Int(round(fixed_p.population)),
         E0   = round(fixed_p.E0, sigdigits=5),
@@ -133,10 +133,13 @@ function run_seird_functional_form(fixed_p, estimated_p, obs_length, smoothing_w
         zeta = zeta
     )
 
+    # ONLY NEED THIS STEP IF I AM DOING A MOVING AVERAGE
     # Simulate extra days for the first 6 days to avoid errors when calculating the moving average
-    extra_days = smoothing_window - 1
+    #extra_days = smoothing_window - 1
     # Remove a day so when we take the difference we have the obs_length number of data points
-    tspan = [0, obs_length + extra_days -1]
+    #tspan = [0, obs_length + extra_days -1]
+
+    tspan = [0, obs_length - 1]
 
     # Define ODE problem 
     prob = ODEProblem(seird_functional!, init_state, tspan, p)
@@ -160,7 +163,7 @@ function generate_synthetic_data(fixed_p, estimated_p, obs_length, smoothing_win
 
 
     # Save the result
-	fname = sim_name(fixed_p, estimated_p) * ".jld2"
+	fname = file_name(fixed_p, estimated_p) * ".jld2"
 
 	mkpath(datadir("synthesised_trajectories"))
 

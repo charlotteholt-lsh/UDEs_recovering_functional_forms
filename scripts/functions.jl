@@ -4,8 +4,13 @@ export loss_ude
 export loss_mse
 
 # Loss function using NLL with L2 regularisation.
-function loss_ude(p_all, _)
+function loss_ude(p_all, predict_ude, data)
     pred = predict_ude(p_all)
+
+    # Align lengths defensively
+    n = min(length(pred), length(data))
+    pred = pred[1:n]
+    data = data[1:n]
 
     # Poisson negative log-likelihood
     ε = 1e-6

@@ -16,13 +16,16 @@ using Optimisers
 using DifferentialEquations
 using Plots
 using Random; rng = Random.default_rng()
+# Call the loss functions
+include(joinpath(@__DIR__, "functions.jl"))
+using .Functions
 
 #========================================================
 DEFINE HYPERPARAMETERS
 =========================================================#
 
 # Define strings for file names and directory for results
-sim_name ="synthesised_MA__input_death_time_hidden_dims_5_RB_solve_no_param_check"
+sim_name ="synthesised_use_infections_optimal_250326"
 model_name = "ude"
 if !isdir(datadir("sims", model_name, sim_name)) 
 	mkpath(datadir("sims", model_name, sim_name))
@@ -30,7 +33,7 @@ end
 
 
 # Number of data points used for training (total number of entries in the dataset)
-const train_length = 123
+const train_length = 365
 const maxiters = 2500
 # set the number of hidden dimensions in the neural network equal to 3
 hidden_dims = 5
@@ -41,12 +44,11 @@ n_sims = 100
 LOAD DATA
 =========================================================#
 
-dataset = load(datadir("sims", "synthetic_mortality_ground_truth_exp.jld2"))
+dataset = load(datadir("synthesised_trajectories", "synthetic_pop=6892503_E0=0.0_R0=0.0_D0=0.0_sig=0.333_gam=0.1_zet=0.02_prev=1.04e-5_del=0.000131_R0r=5.28.jld2"))
 
 # Just use data with strongest behavioural response (zeta = 0.02)
-df = dataset["df"]
-data = df[!, "y_zeta_0.02"]
-days = df[!, "days"]
+data = dataset["infectious"]
+days = dataset["days"]
 
 #========================================================
 DEFINE INITIAL STATE
@@ -79,8 +81,6 @@ S0 = population - E0 - I0 - R0_recovered - D0
 
 # Define initial state
 init_state = [S0, E0, I0, R0_recovered, D0]
-
-println("Initial state: S0 = $(S0), E0 = $(E0), I0 = $(I0), R0_recovered = $(R0_recovered), D0 = $(D0)")
 
 #========================================================
 SET UP MODEL
@@ -122,10 +122,10 @@ function seird_nn!(du, u, p, t)
     end
 
     # Evaluate beta(t) using the neural network
-    tmax = 123
+    tmax = train_length
 
     # Define inputs for NN
-    nn_input = [delta*I,t]
+    nn_input = [I,t]
 
     # Evaluate neural network and extract scalar
     beta = beta_network(nn_input, p.nn_params, st_nn)[1][1]
@@ -150,15 +150,10 @@ function predict_ude(p_all)
     prob = remake(prob_ude, p = p_all)
     sol_ude = solve(prob, Rosenbrock23(), saveat=1.0, dense = false)
 
-    
-    D_pred = [sol_ude.u[i][5] for i in 1:train_length]
-    daily_deaths_pred = [0.0; diff(D_pred)]
-
-    return daily_deaths_pred
+    return sol_ude[3, 1:train_length]
 end
 
-# Call the loss functions
-using .Functions
+
 
 #========================================================
 TRAINING
@@ -177,7 +172,7 @@ function train_ude(p; maxiters = maxiters, halt_condition = l -> false)
 
     for iter in 1:maxiters
         # Compute the loss, predicted mortalities and gradient function
-        (l, pred), back_all = pullback(theta -> loss_ude(theta, nothing), p)
+        (l, pred), back_all = pullback(theta -> Functions.loss_ude(theta, predict_ude, data), p)
         println("Iteration $iter, Loss: $l")
         # Evaluate the gradient fo the loss w.r.t p
         grad = back_all((one(l), nothing))[1]
@@ -249,9 +244,9 @@ function run_model()
 
 
     # Make sure to start with a stable parameterization
-    l_init = loss_ude(p_init, nothing)[1]
+    l_init = Functions.loss_ude(p_init, predict_ude, data)[1]
     println("Initial loss: $l_init")
-	while l_init > 1e4
+	while l_init < 1e4
 		println("Unstable initial parameterization. Restarting..., $l_init")
         # Initialise parameters
         p, st = Lux.setup(rng, beta_network)
@@ -266,7 +261,7 @@ function run_model()
             delta = delta,
             tmax = train_length
         )
-        l_init = loss_ude(p_init, nothing)[1]
+        l_init = Functions.loss_ude(p_init, predict_ude, data)[1]
 	end
 
 
