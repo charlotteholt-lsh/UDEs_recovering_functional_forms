@@ -8,6 +8,7 @@ Pkg.instantiate()
 cd(@__DIR__)
 using DrWatson
 @quickactivate("UDE_FUNCTIONAL_FORMS")
+include(joinpath(@__DIR__, "functions.jl"))
 using .Functions
 using JLD2
 using Plots
@@ -24,11 +25,10 @@ FUNCTION TO GENERATE PLOTS OF SIMULATIONS
 function plot_simulation(sim_name, plot_title)
 
     # Load the observed data
-    dataset = load(datadir("sims", "synthetic_mortality_ground_truth_exp.jld2"))
-    # Just use data with strongest behavioural response (zeta = 0.02)
-    df = dataset["df"]
-    obs = df[!, "y_zeta_0.02"]
-    days = df[!, "days"]
+    dataset = load(datadir("synthesised_trajectories", "synthetic_pop=6892503_E0=0.0_R0=0.0_D0=0.0_sig=0.333_gam=0.1_zet=0.02_prev=1.04e-5_del=0.000131_R0r=5.28.jld2"))
+    # Just use infectious trajectory
+    obs = dataset["infectious"]
+    days = dataset["days"]
 
     # Define the root file path
     root = datadir("sims", "ude", sim_name)
@@ -41,10 +41,9 @@ function plot_simulation(sim_name, plot_title)
             # Extract results, predictions and losses
             results = load(datadir("sims", "ude", sim_name, filename, "results.jld2"))
             pred = results["prediction"]
-            # Extract the predicted mortalities for the training data
-            D_pred = pred[5, 1:length(obs)]
-            daily_deaths_pred = [0.0; diff(D_pred)]
-            push!(all_predictions, daily_deaths_pred)
+            # Extract the predicted infectious trajectory for the training data
+            i_traj = pred[3, 1:length(obs)]
+            push!(all_predictions, i_traj)
         end
     end
 
@@ -55,7 +54,7 @@ function plot_simulation(sim_name, plot_title)
     # Find the median prediction and IQR across all simulations
     # Find the mdeian aggregating over the rows (i.e. across all simulations) for each column (i.e. for each day of the training data)
     median_prediction = median(prediction_matrix, dims=1)
-
+    println(median_prediction)
     # Convert to a vector
     median_prediction = vec(median_prediction)
 
@@ -86,7 +85,7 @@ function plot_simulation(sim_name, plot_title)
 end
 
 
-sim_name = "synthesised_MA_input_death_time_hidden_dims_5_RB_solve_no_param_check"
+sim_name = "synthesised_use_infections_optimal_250326"
 plot_title = "Optimal prediction 250326"
 plot_simulation(sim_name, plot_title)
 

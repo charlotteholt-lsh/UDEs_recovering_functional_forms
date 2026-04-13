@@ -17,6 +17,7 @@ using Lux
 using JLD2
 using ComponentArrays
 using Plots
+include(joinpath(@__DIR__, "functions.jl"))
 using .Functions
 using Statistics
 using Random; rng = Random.default_rng()
@@ -26,7 +27,7 @@ SET UP
 =============================================================#
 
 # Define simulation name and training length
-sim_name = "synthesised_MA_input_death_time_hidden_dims_5_RB_solve_no_param_check"
+sim_name = "synthesised_use_infections_optimal_250326"
 
 # Define the NN architecture
 hidden_dims = 5
@@ -56,10 +57,11 @@ RETRIEVE PREDICTIONS AND PARAMETERS FROM THE BEST SIMULATION
 =============================================================#
 
 # Load the observed data
-dataset = load(datadir("sims", "synthetic_mortality_ground_truth_exp.jld2"))
-# Just use data with strongest behavioural response (zeta = 0.02)
-df = dataset["df"]
-obs = df[!, "y_zeta_0.02"]
+dataset = load(datadir("synthesised_trajectories", "synthetic_pop=6892503_E0=0.0_R0=0.0_D0=0.0_sig=0.333_gam=0.1_zet=0.02_prev=1.04e-5_del=0.000131_R0r=5.28.jld2"))
+   
+# Just use infectious trajectory
+obs = dataset["infectious"]
+days = dataset["days"]
 
 # Retrieve NN parameters that resulted in the lowest error on the training data
 
@@ -74,11 +76,10 @@ for filename in readdir(root)
         # Extract results, predictions and losses
         SR_results = load(datadir("sims", "ude", sim_name, filename, "results.jld2"))
         pred = SR_results["prediction"]
-        # Extract the predicted mortalities for the training data
-        D_pred = pred[5, 1:length(obs)]
-        daily_deaths_pred = [0.0; diff(D_pred)]
-        mse = Functions.loss_mse(daily_deaths_pred, obs)
-        push!(results_list, (mse=mse, fname=filename, daily_deaths_pred=daily_deaths_pred))
+        # Extract the predicted infectious trajectory for the training data
+        i_traj = pred[3, 1:length(obs)]
+        mse = Functions.loss_mse(i_traj, obs)
+        push!(results_list, (mse=mse, fname=filename, i_traj=i_traj))
     end
 end
 
@@ -88,7 +89,7 @@ best_mse = results_list[best_idx].mse
 best_fname = results_list[best_idx].fname
 
 # Extract the data but convert to a 1 x N matrix
-x_hat = reshape(results_list[best_idx].daily_deaths_pred, 1, :)
+x_hat = reshape(results_list[best_idx].i_traj, 1, :)
 
 # Extract the NN parameters from the best simulation
 best_results = load(datadir("sims", "ude", sim_name, best_fname, "results.jld2"))
@@ -137,6 +138,9 @@ nn_params = DataDrivenDiffEq.get_parameter_values(nn_eqs)
 DEFINE INITAL STATE AND PARAMETERS
 =============================================================#
 
+# Define training length
+const train_length = 365
+
 # Latent period of 3 days represented by incubation rate sigma
 const sigma = 1/3 
 # Infectious period of 10 days represented by recovery rate gamma
@@ -180,7 +184,7 @@ function recovered_dynamics!(du, u, p, t)
         return
     end
     # Evaluate symbolic-regression approximation
-    beta = nn_res([delta * I], p, t)[1]
+    beta = nn_res([I], p, t)[1]
     # Define the SEIRD equations
     du[1] = -beta * S * I / N
     du[2] = beta * S * I / N - sigma * E
@@ -190,11 +194,8 @@ function recovered_dynamics!(du, u, p, t)
 end
 
 # Define ODE problem with recovered parameters form symbolic regression and solve
-sindy_prob = ODEProblem(recovered_dynamics!, init_state, (1,123), nn_params)
-pred_sindy = solve(sindy_prob, Tsit5(), u0=init_state, tspan=(1,123), saveat=1)
-
-# Convert cumulative deaths D(t) to daily deaths to match observed data
-daily_deaths_sindy = [0.0; diff(pred_sindy[5, :])]
+sindy_prob = ODEProblem(recovered_dynamics!, init_state, (1,train_length), nn_params)
+pred_sindy = solve(sindy_prob, Tsit5(), u0=init_state, tspan=(1,train_length), saveat=1)
 
 #=============================================================
 DEFINE ODE SYSTEM USING THE KNOWN FUNCTIONAL FORM FOR THE TIME-VARYING BETA
@@ -228,14 +229,14 @@ function true_dynamics!(du, u, p, t)
 end
 
 # Define and solve ODE problem using parameters defined at the start of the script
-true_prob = ODEProblem(true_dynamics!, init_state, (1,123))
-pred_true = solve(true_prob, Tsit5(), u0=init_state, tspan=(1,123), saveat=1)
+true_prob = ODEProblem(true_dynamics!, init_state, (1,train_length))
+pred_true = solve(true_prob, Tsit5(), u0=init_state, tspan=(1,train_length), saveat=1)
 
 #=============================================================
 EXTRACT THE DAILY DEATH PREDICTIONS FOR THE UDE MODEL
 =============================================================#
 
-daily_deaths_nn = results_list[best_idx].daily_deaths_pred
+i_traj_nn = results_list[best_idx].i_traj
 
 #=============================================================
 EVALUATE BETA TRAJECTORIES
@@ -248,11 +249,11 @@ I_true = pred_true[3, :]
 beta_true = true_beta.(I_true)
 
 # Beta learned by the trained NN on the same true-system I(t)
-nn_input_true = vcat(reshape(delta .* I_true, 1, :), reshape(pred_true.t, 1, :))
+nn_input_true = vcat(reshape(I_true, 1, :), reshape(pred_true.t, 1, :))
 beta_nn_on_true = vec(beta_network(nn_input_true, p_trained.nn_params, st_nn)[1])
 
 # Recovered beta evaluated along the same I(t) for comparison
-beta_recovered_on_true = [nn_res([delta * I], nn_params, t)[1] for (I, t) in zip(I_true, pred_true.t)]
+beta_recovered_on_true = [nn_res([I], nn_params, t)[1] for (I, t) in zip(I_true, pred_true.t)]
 
 # Do relative to their own trajectories for comparison
 
@@ -260,7 +261,7 @@ beta_recovered_on_true = [nn_res([delta * I], nn_params, t)[1] for (I, t) in zip
 beta_nn = vec(y_hat) 
 
 # Recovered beta evaluated along the SINDy approximation
-beta_recovered = [nn_res([delta*I], nn_params, t)[1] for (I, t) in zip(pred_sindy[3, :], pred_sindy.t)]
+beta_recovered = [nn_res([I], nn_params, t)[1] for (I, t) in zip(pred_sindy[3, :], pred_sindy.t)]
 
 #=============================================================
 PLOT RESULTS
@@ -268,13 +269,13 @@ PLOT RESULTS
 
 # Plot predicted trajectories (UDE and SINDy model) against the observed data
 p1 = plot(days, obs, label="Observed data", lw=2)
-plot!(p1, days, daily_deaths_nn, label="NN trajectory", lw=2, ls=:dot)
-plot!(p1, pred_sindy.t, daily_deaths_sindy, label="SINDY prediction", lw=2, ls=:dash)
+plot!(p1, days, i_traj_nn, label="NN trajectory", lw=2, ls=:dot)
+plot!(p1, pred_sindy.t, pred_sindy[3, :], label="SINDY prediction", lw=2, ls=:dash)
 xlabel!(p1, "Day")
 ylabel!(p1, "Daily deaths")
 title!(p1, "SINDY approximation of daily deaths")
-mse_sindy = Functions.loss_mse(daily_deaths_sindy, obs)
-mse_nn = Functions.loss_mse(daily_deaths_nn, obs)
+mse_sindy = Functions.loss_mse(pred_sindy[3, :], obs)
+mse_nn = Functions.loss_mse(i_traj_nn, obs)
 annotate!(p1, days[end], maximum(obs), text("MSE SINDY: $(round(mse_sindy, digits=4))", 9, :right))
 annotate!(p1, days[end], maximum(obs) * 0.9, text("MSE NN: $(round(mse_nn, digits=4))", 9, :right))
 
@@ -297,4 +298,15 @@ title!(p3, "Transmission rate using true-system I(t)")
 pl = plot(p1, p2, p3, layout=(3, 1), size=(900, 1050))
 
 # Save the plot
-savefig(pl, joinpath(@__DIR__, "figures", "initial_sindy_attempt_lowest_MSE_trajectory_optimal_HP_250326.png"))           
+savefig(pl, joinpath(@__DIR__, "figures", "$(sim_name)_sindy_trajectory.png"))           
+
+p_beta = plot(days, beta_true, label = "True β", lw = 2)
+plot!(p_beta, days, beta_nn_on_true, label = "Learned β", lw = 2, ls = :dash)
+
+xlabel!(p_beta, "Day")
+ylabel!(p_beta, "β")
+title!(p_beta, "Learned vs true transmission rate")
+
+display(p_beta)
+
+savefig(p_beta, joinpath(@__DIR__, "figures", "$(sim_name)_sindy_beta_comparison.png"))
