@@ -25,12 +25,11 @@ DEFINE HYPERPARAMETERS
 =========================================================#
 
 # Define strings for file names and directory for results
-sim_name ="synthesised_use_infections_optimal_250326"
+sim_name ="synthesised_use_normalised_infections_optimal_250326"
 model_name = "ude"
 if !isdir(datadir("sims", model_name, sim_name)) 
 	mkpath(datadir("sims", model_name, sim_name))
 end
-
 
 # Number of data points used for training (total number of entries in the dataset)
 const train_length = 365
@@ -46,7 +45,7 @@ LOAD DATA
 
 dataset = load(datadir("synthesised_trajectories", "synthetic_pop=6892503_E0=0.0_R0=0.0_D0=0.0_sig=0.333_gam=0.1_zet=0.02_prev=1.04e-5_del=0.000131_R0r=5.28.jld2"))
 
-# Just use data with strongest behavioural response (zeta = 0.02)
+# Extract infectious individuals and days from the dataset
 data = dataset["infectious"]
 days = dataset["days"]
 
@@ -121,11 +120,8 @@ function seird_nn!(du, u, p, t)
         return
     end
 
-    # Evaluate beta(t) using the neural network
-    tmax = train_length
-
-    # Define inputs for NN
-    nn_input = [I,t]
+    # Define normalised inputs for NN
+    nn_input = [I / population, t / train_length]
 
     # Evaluate neural network and extract scalar
     beta = beta_network(nn_input, p.nn_params, st_nn)[1][1]
@@ -144,13 +140,15 @@ prob_ude = ODEProblem(seird_nn!, init_state, tspan, p_nn_temp)
 PREDICTION AND LOSS FUNCTIONS
 =========================================================# 
 
-# Predict mortalities
+# Predict number of daily infections (movement of people from S -> E)
 function predict_ude(p_all)
     
     prob = remake(prob_ude, p = p_all)
     sol_ude = solve(prob, Rosenbrock23(), saveat=1.0, dense = false)
 
-    return sol_ude[3, 1:train_length]
+    I_pred = sol_ude[3, 1:train_length]
+
+    return I_pred
 end
 
 
@@ -203,11 +201,11 @@ RUN WITHOUT PLOTTING
             display("Total loss: $l")
             x = days[1:length(pred)]
             pl = scatter(x, data[1:length(pred)], color=:black, markersize=2,
-                label="Data", xlabel="Day", ylabel="Daily deaths", title="Iteration $iter")
+                label="Data", xlabel="Day", ylabel="Daily new infections", title="Iteration $iter")
             plot!(pl, x, pred, color=:red, linewidth=2, label="Prediction")
             display(pl)
 		end	
-=========================================================# 
+========================================================#
 
 
         # Update parameters using the gradient
@@ -246,7 +244,8 @@ function run_model()
     # Make sure to start with a stable parameterization
     l_init = Functions.loss_ude(p_init, predict_ude, data)[1]
     println("Initial loss: $l_init")
-	while l_init < 1e4
+#========================================================
+    while l_init > 1e4
 		println("Unstable initial parameterization. Restarting..., $l_init")
         # Initialise parameters
         p, st = Lux.setup(rng, beta_network)
@@ -263,9 +262,9 @@ function run_model()
         )
         l_init = Functions.loss_ude(p_init, predict_ude, data)[1]
 	end
+=========================================================# 
 
-
-    halt_condition = l -> (abs(l[1]) < 0.01)
+    halt_condition = l -> (abs(l) < 0.01)
     p_trained, losses_final = train_ude(p_init, maxiters = maxiters, halt_condition = halt_condition)
 
     # Evaluate final long term results 

@@ -27,7 +27,7 @@ SET UP
 =============================================================#
 
 # Define simulation name and training length
-sim_name = "synthesised_use_infections_optimal_250326"
+sim_name = "synthesised_use_normalised_infections_optimal_250326"
 
 # Define the NN architecture
 hidden_dims = 5
@@ -38,6 +38,9 @@ beta_network = Lux.Chain(Lux.Dense(2=>hidden_dims, gelu), Lux.Dense(hidden_dims=
 # Initialise parameters
 p_nn_temp, st_nn = Lux.setup(rng, beta_network)
 
+# Define population for scaling
+population = 6892503.0
+
 #=============================================================
 CREATE BASIS
 =============================================================#
@@ -45,9 +48,10 @@ CREATE BASIS
 # Generate library of candidate functions
 # We have one state variable u[1](t)
 @variables t u(t)[1:1]
-u = collect(u)
-# Define the library of candidate functions
-h = Num[polynomial_basis(u,3); exp(u[1])]
+# Normalise the number of infectious individuals so that the exponential term doesn't overflow
+u_scaled = u[1] / population
+poly_terms = DataDrivenDiffEq.polynomial_basis([u_scaled], 3)
+h = Num[vcat(poly_terms, [exp(u_scaled)])...]
 # Define basis
 basis = DataDrivenDiffEq.Basis(h, u, iv = t)
 
@@ -130,9 +134,9 @@ nn_res = DataDrivenDiffEq.solve(nn_problem, basis, opt, options=options)
 
 nn_eqs = DataDrivenDiffEq.get_basis(nn_res)
 nn_params = DataDrivenDiffEq.get_parameter_values(nn_eqs)
-#println(nn_res)
-# println(nn_eqs)
-#println(nn_params)
+println(nn_res)
+println(nn_eqs)
+println(nn_params)
 
 #=============================================================
 DEFINE INITAL STATE AND PARAMETERS
@@ -299,6 +303,8 @@ pl = plot(p1, p2, p3, layout=(3, 1), size=(900, 1050))
 
 # Save the plot
 savefig(pl, joinpath(@__DIR__, "figures", "$(sim_name)_sindy_trajectory.png"))           
+
+display(pl)
 
 p_beta = plot(days, beta_true, label = "True β", lw = 2)
 plot!(p_beta, days, beta_nn_on_true, label = "Learned β", lw = 2, ls = :dash)
