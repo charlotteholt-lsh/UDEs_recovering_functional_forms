@@ -54,7 +54,6 @@ function plot_simulation(sim_name, plot_title)
     # Find the median prediction and IQR across all simulations
     # Find the mdeian aggregating over the rows (i.e. across all simulations) for each column (i.e. for each day of the training data)
     median_prediction = median(prediction_matrix, dims=1)
-    println(median_prediction)
     # Convert to a vector
     median_prediction = vec(median_prediction)
 
@@ -72,8 +71,10 @@ function plot_simulation(sim_name, plot_title)
     # Create plot
     x = days[1:length(prediction_matrix[1, :])]
     pl = scatter(x, obs[1:length(prediction_matrix[1, :])], color=:black, markersize=2,
-    label="Data", xlabel="Day", ylabel="Daily deaths", title="$plot_title")
-    annotate!(pl, x[end], maximum(obs), text("MSE: $(round(mse, digits=4))", 9, :right))
+    label="Data", xlabel="Day", ylabel="Daily deaths", title="$plot_title", legend=:topright)
+    x_annot = x[end] - 0.02 * (x[end] - x[1])
+    y_annot = maximum(obs[1:length(prediction_matrix[1, :])]) * 0.88
+    annotate!(pl, x_annot, y_annot, text("MSE: $(round(mse, digits=4))", 9, :right))
     plot!(pl, x, median_prediction, color=:red, linewidth=2, ribbon = ((median_prediction - lower_quantile), (upper_quantile - median_prediction)), label="Median prediction")
     display(pl)
 
@@ -85,7 +86,7 @@ function plot_simulation(sim_name, plot_title)
 end
 
 
-sim_name = "synthesised_use_infections_optimal_250326"
+sim_name = "synthesised_use_normalised_infections_optimal_250326"
 plot_title = "Optimal prediction 250326"
 plot_simulation(sim_name, plot_title)
 
