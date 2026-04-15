@@ -1,9 +1,13 @@
+#=============================================================
+MODULE CONTAINING FUNCTIONS USED MULTIPLE TIMES IN THE PROJECT
+==============================================================# 
+
 module Functions
 
 export loss_ude
 export loss_mse
 
-# Loss function using NLL with L2 regularisation.
+# Loss function using NLL
 function loss_ude(p_all, predict_ude, data)
     pred = predict_ude(p_all)
 

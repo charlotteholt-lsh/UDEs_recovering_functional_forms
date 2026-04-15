@@ -27,7 +27,7 @@ SET UP
 =============================================================#
 
 # Define simulation name and training length
-sim_name = "synthesised_use_normalised_infections_optimal_250326"
+sim_name = "synthesised_use_infections_optimal_250326"
 
 # Define the NN architecture
 hidden_dims = 5
@@ -116,9 +116,6 @@ nn_problem = DataDrivenDiffEq.DirectDataDrivenProblem(x_hat, y_hat)
 # Define the shrinking cut off
 lambda = 1e-4
 opt = DataDrivenSparse.STLSQ(lambda)
-
-# lambdas = exp10.(-3:0.1:3)
-# opt = STLSQ(lambdas)
 
 # Solve the sparse regression problem
 options = DataDrivenDiffEq.DataDrivenCommonOptions(maxiters = 10_000,
