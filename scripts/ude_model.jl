@@ -151,7 +151,7 @@ function predict_ude(p_all)
     return I_pred
 end
 
-
+# Loss function in functions.jl module
 
 #========================================================
 TRAINING

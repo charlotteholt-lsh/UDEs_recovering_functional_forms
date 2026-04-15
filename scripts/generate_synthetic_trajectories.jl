@@ -36,23 +36,6 @@ function moving_average(x)
     return vcat(zeros(k-1), valid)
 end
 
-# Build the file name for simulation
-function file_name(fixed_p, estimated_p)
-    params = (
-        pop  = Int(round(fixed_p.population)),
-        E0   = round(fixed_p.E0, sigdigits=5),
-        R0   = round(fixed_p.R0_recovered, sigdigits=5),
-        D0   = round(fixed_p.D0, sigdigits=5),
-        sig  = round(fixed_p.sigma, sigdigits=5),
-        gam  = round(fixed_p.gamma, sigdigits=5),
-        zet  = round(fixed_p.zeta, sigdigits=5),
-        prev = round(estimated_p.prevalence, sigdigits=5),
-        del  = round(estimated_p.delta, sigdigits=5),
-        R0r  = round(estimated_p.R0_reproduction, sigdigits=5),
-    )
-    return "synthetic_" * savename(params; connector="_", sort=false)
-end
-
 function convert_to_daily_and_smooth(traj, smoothing_window)
     # Convert to daily values by taking the difference between consecutive entries
     daily_values = [0.0; diff(traj)]
@@ -106,7 +89,6 @@ function run_seird_functional_form(fixed_p, estimated_p, obs_length, smoothing_w
     # Retrieve fixed parameters
     sigma = fixed_p.sigma
     gamma = fixed_p.gamma
-    zeta = fixed_p.zeta
     N = fixed_p.population
     E0 = fixed_p.E0
     R0_recovered = fixed_p.R0_recovered 
@@ -116,6 +98,7 @@ function run_seird_functional_form(fixed_p, estimated_p, obs_length, smoothing_w
     prevalence = estimated_p.prevalence
     delta = estimated_p.delta
     R0_reproduction = estimated_p.R0_reproduction
+    zeta = estimated_p.zeta
 
     # Derive other parameters
     beta0 = R0_reproduction * (gamma + delta)
@@ -124,6 +107,7 @@ function run_seird_functional_form(fixed_p, estimated_p, obs_length, smoothing_w
 
     # Define initial state
     init_state = [S0, E0, I0, R0_recovered, D0]
+
     # Define parameters for the ODE solver
     p = ComponentArray(
         beta0 = beta0,
@@ -149,7 +133,7 @@ function run_seird_functional_form(fixed_p, estimated_p, obs_length, smoothing_w
     return sol
 end
 
-function generate_synthetic_data(fixed_p, estimated_p, obs_length, smoothing_window = 7)
+function generate_synthetic_data(fixed_p, estimated_p, obs_length, location, smoothing_window = 7)
     # Run model
     sim = run_seird_functional_form(fixed_p, estimated_p, obs_length, smoothing_window)
 
@@ -163,8 +147,7 @@ function generate_synthetic_data(fixed_p, estimated_p, obs_length, smoothing_win
 
 
     # Save the result
-	fname = file_name(fixed_p, estimated_p) * ".jld2"
-
+    fname = "synthesised_$(location)" * ".jld2"
 	mkpath(datadir("synthesised_trajectories"))
 
 
@@ -183,13 +166,11 @@ end
 DEFINE PARAMETERS AND GENERATE SYNTHETIC DATA
 =========================================================#
 
-# Define parameters
-
-# Massachusetts population size - taken from JHU CSSE
-N = 6892503
+# Define fixed parameters that remain constant across all simulations
+# They do not influence the transmission rate that we are trying to learn
 
 # Initial conditions
-E0 = 0.0
+E0 = 1.0
 R0 = 0.0
 D0 = 0.0
 
@@ -198,39 +179,40 @@ const sigma = 1/3
 # Infectious period of 10 days represented by recovery rate gamma
 const gamma = 1/10
 
+# Extract varying parameters that form the functional form of beta that we are trying to learn
+# This will create different trajectories that we will learn using the neural network
 
-# EXTRACTED USING GROUND_TRUTH_VALUES FOR MA IN THE PYTHON CODE
-prevalence = exp(-11.468967)
-R0_reproduction = 5.284404
-const delta = exp(-8.941224)
-
-fixed_p = ComponentArray(sigma = sigma, 
-                        gamma = gamma, 
-                        zeta = 0.02, 
-                        population = N,
-                        E0 = E0, 
-                        R0_recovered = R0, 
-                        D0 = D0)
-estimated_p = ComponentArray(prevalence = prevalence, 
-                            delta = delta, 
-                            R0_reproduction = R0_reproduction)
-
-generate_synthetic_data(fixed_p, estimated_p, 365)
+include("estimated_ground_truth_parameters.jl")
+using .EstimatedGroundTruthParameters: POPULATION, PREVALENCE, R0_REPRODUCTION, DELTA, ZETA
 
 
-# Convert csv to jld2 file
-datafile = CSV.File(datadir("sims", "synthetic_mortality_ground_truth_exp.csv"))
+# Loop through each combination of parameters for each state and generate synthetic data
+for location in keys(POPULATION)
+    population = POPULATION[location]
+    prevalence = PREVALENCE[location]
+    delta = DELTA[location]
+    R0_reproduction = R0_REPRODUCTION[location]
+    zeta = ZETA[location]
 
-# turn the data into a dataframe
-df = DataFrame(datafile)
+    # Create component arrays
+    fixed_p = ComponentArray(sigma = sigma,     
+                            gamma = gamma, 
+                            population = population,
+                            E0 = E0, 
+                            R0_recovered = R0, 
+                            D0 = D0)
 
-# Save the dataframe as a jld2 file
-save(datadir("sims", "synthetic_mortality_ground_truth_exp.jld2"), "df", df)
+    estimated_p = ComponentArray(prevalence = prevalence, 
+                                delta = delta, 
+                                R0_reproduction = R0_reproduction,
+                                zeta = zeta)
 
+    # Generate data and save to JLD2 file
+    generate_synthetic_data(fixed_p, estimated_p, 365, location)
+end
 
-# Extract infectious trajectoryfrom JLD2 file
+# Extract infectious trajectory from JLD2 file
 dataset = load(datadir("synthesised_trajectories", "synthetic_pop=6892503_E0=0.0_R0=0.0_D0=0.0_sig=0.333_gam=0.1_zet=0.02_prev=1.04e-5_del=0.000131_R0r=5.28.jld2"))
-
 
 # Plot infections
 infections = dataset["infectious"]

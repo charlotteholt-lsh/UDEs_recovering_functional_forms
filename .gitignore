@@ -3,3 +3,4 @@ data/synthesised_trajectories/
 .DS_Store
 scripts/plot_together.jl
 scripts/figures/
+scripts/generate_ground_truth_values.jl
