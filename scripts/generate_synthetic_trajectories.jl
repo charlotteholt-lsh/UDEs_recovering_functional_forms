@@ -21,32 +21,6 @@ using DSP
 using Plots 
 
 #========================================================
-HELPER FUNCTIONS
-=========================================================#
-
-# Calculate a 7-day moving average
-function moving_average(x)
-    k = 7
-    kernel = ones(k) / k
-    if length(x) < k
-        return zeros(length(x))
-    end
-    valid = DSP.conv(x, kernel)[k:end-k+1]
-    # Returns a vector of length(x) where the first k-1 entries are zero
-    return vcat(zeros(k-1), valid)
-end
-
-function convert_to_daily_and_smooth(traj, smoothing_window)
-    # Convert to daily values by taking the difference between consecutive entries
-    daily_values = [0.0; diff(traj)]
-    # Smooth the daily values using a moving average
-    smoothed_daily_values = moving_average(daily_values)
-    # Remove the first few entries that are zero due to the moving average
-    smoothed_daily_values = smoothed_daily_values[smoothing_window:end]
-    return smoothed_daily_values
-end
-
-#========================================================
 DEFINE THE MODEL
 =========================================================#
 
@@ -84,7 +58,7 @@ FUNCTION TO RUN THE MODEL
 # p must be of the form (beta0, delta, sigma, gamma, zeta)
 # fixed_p must be of the form (sigma, gamma, zeta, population, E0, R0_recovered, D0)
 # varying_p must be of the form (population,prevalence, delta, R0_reproduction)
-function run_seird_functional_form(fixed_p, varying_p, obs_length, smoothing_window = 7)
+function run_seird_functional_form(fixed_p, varying_p, obs_length)
 
     # Retrieve fixed parameters
     sigma = fixed_p.sigma
@@ -117,13 +91,8 @@ function run_seird_functional_form(fixed_p, varying_p, obs_length, smoothing_win
         zeta = zeta
     )
 
-    # ONLY NEED THIS STEP IF I AM DOING A MOVING AVERAGE
-    # Simulate extra days for the first 6 days to avoid errors when calculating the moving average
-    #extra_days = smoothing_window - 1
-    # Remove a day so when we take the difference we have the obs_length number of data points
-    #tspan = [0, obs_length + extra_days -1]
-
-    tspan = [0, obs_length - 1]
+    # Align solver times with saved labels days = 1:obs_length
+    tspan = [1, obs_length]
 
     # Define ODE problem 
     prob = ODEProblem(seird_functional!, init_state, tspan, p)
@@ -135,7 +104,7 @@ end
 
 function generate_synthetic_data(fixed_p, varying_p, obs_length, location, smoothing_window = 7)
     # Run model
-    sim = run_seird_functional_form(fixed_p, varying_p, obs_length, smoothing_window)
+    sim = run_seird_functional_form(fixed_p, varying_p, obs_length)
 
     # Extract raw states 
     s_traj = sim[1, :]
