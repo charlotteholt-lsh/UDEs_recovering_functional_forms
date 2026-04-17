@@ -1,5 +1,5 @@
 #========================================================
-SCRIPT TO TRAIN THE UDE MODEL
+SCRIPT TO TRAIN THE UDE MODEL FOR MULTIPLE TRAJECTORIES
 =========================================================#  
 using Pkg
 # Activate the project
@@ -56,13 +56,7 @@ const D0 = 0.0
 #========================================================
 SET UP MODEL
 =========================================================#
-# Do the following if we want to take weekly averages of the data (if for example there will be big trends within the week such as at weekends)
 
-# sample_period = 7
-# Define the indexes for the training data (every 7 days)
-# train_split = 1:div(train_length, sample_period)
-# Define the discrete timepoints where we have data for training (every 7 days)
-# t_train = range(0.0, step=sample_period, length=length(train_split))
 # Define the timespan for the ODE solver
 tspan = [0, train_length]
 
@@ -80,6 +74,17 @@ init_state = [0.0, E0, 0.0, R0_recovered, D0]
 # ComponentArray wraps nested parameter structures into flat array keeping named access
 p_nn_temp = ComponentArray(p_nn_temp)
 
+
+# Create placeholder component array to set up neural network
+ph_nn = ComponentArray(
+                nn_params = p_nn_temp,
+                population = 0,
+                prevalence = 0,
+                beta0 = 0,
+                zeta = 0,
+                r0_recovered = 0,
+                delta = 0
+            )
 
 # Define the model 
 function seird_nn!(du, u, p, t)
@@ -136,11 +141,34 @@ end
 TRAINING
 =========================================================# 
 
-
-function train_ude(nn_params; maxiters = maxiters, halt_condition = l -> false)
+function train_ude(nn_params; maxiters = maxiters)
 
     # Set up optimisation
     optimised_state = Optimisers.setup(Optimisers.Adam(1e-3), nn_params)
+
+    # Preload all trajectories and store in a vector
+    root = datadir("synthesised_trajectories")
+    trajectories = []
+    for filename in readdir(root)
+        if endswith(filename, ".jld2")
+            dataset = load(joinpath(root, filename))
+            varying_p = ComponentArray(
+                population = dataset["varying_p"]["population"],
+                prevalence = dataset["varying_p"]["prevalence"],
+                delta = dataset["varying_p"]["delta"],
+                R0_reproduction = dataset["varying_p"]["R0_reproduction"],
+                zeta = dataset["varying_p"]["zeta"]
+            )
+
+            push!(trajectories, (
+                filename = filename,
+                data = dataset["infectious"],
+                days = dataset["days"],
+                varying_p = varying_p
+            ))
+        end
+    end
+    println("Loaded $(length(trajectories)) trajectories into memory")
 
     # Create 1D vector to track total losses across all trajectories during training
     total_losses = Float64[]
@@ -154,32 +182,20 @@ function train_ude(nn_params; maxiters = maxiters, halt_condition = l -> false)
         # Compute the loss, predicted mortalities and gradient function for each synthesised trajectory
         
         # Loop through all simulations
-        # Define the root file path
-        root = datadir("synthesised_trajectories")
-        individual_losses = []
+        individual_losses = Float64[]
         grad_sum = zero(nn_params)
-        n_traj = 0
-        # Read all files/folders in the root directory
-        for filename in readdir(root)
-            # Extract trajectory of infectious individuals
-            dataset = load(datadir("synthesised_trajectories", filename))
-            data = dataset["infectious"]
-            days = dataset["days"]
 
-            varying_p = ComponentArray(
-                population = dataset["varying_p"]["population"],
-                prevalence = dataset["varying_p"]["prevalence"],
-                delta = dataset["varying_p"]["delta"],
-                R0_reproduction = dataset["varying_p"]["R0_reproduction"],
-                zeta = dataset["varying_p"]["zeta"]
-            )
+        for traj in trajectories
+            data = traj.data
+            days = traj.days
+            varying_p = traj.varying_p
 
             # Derive beta0 specific to current trajectory
             beta0 = varying_p.R0_reproduction * (gamma + varying_p.delta)
 
             # Update the parameters for the current trajectory to include the varying parameters
             p_all = ComponentArray(
-                nn_params = best_nn_params,
+                nn_params = nn_params,
                 population = varying_p.population,
                 prevalence = varying_p.prevalence,
                 beta0 = beta0,
@@ -196,17 +212,16 @@ function train_ude(nn_params; maxiters = maxiters, halt_condition = l -> false)
             grad = back_all((one(l), nothing))[1]
         
             push!(individual_losses, l)
-            grad_sum .+= Float32.(grad.nn_params)
-            n_traj += 1
+            grad_sum .+= grad.nn_params
 
         end
 
         # Sum the losses across all trajectories to get the total loss for this iteration
         total_loss = sum(individual_losses)
-        total_grad = grad_sum / max(n_traj, 1)
+        total_grad = grad_sum 
 
     	# Stop training if 5 consecutive Inf losses
-		if total_loss == Inf && length(total_losses) >= 5 && all(isinf, total_losses[end-4:end])
+		if total_loss == Inf && length(total_losses) >= 4 && all(isinf, total_losses[end-4:end])
 			println("Unstable parameter region. Aborting...")
 			break
 		end 
@@ -241,9 +256,6 @@ RUN WITHOUT PLOTTING
         # Update parameters using the gradient
         optimised_state, nn_params = Optimisers.update(optimised_state, nn_params, total_grad)
 
-        if halt_condition(total_loss)
-			break
-		end
     end
 
     return best_nn_params, total_losses
@@ -260,43 +272,7 @@ function run_model()
     nn_params, st = Lux.setup(rng, beta_network)
     nn_params = ComponentArray(nn_params)
 
-
-    # Combine all parameters into a single object for optimisation
-    #p_init = ComponentArray(
-   #     nn_params = nn_params,
-    #    population = population,
-     #   beta0 = beta0,
-      #  zeta = zeta,
-       # r0_reproduction = R0_reproduction,
-        #delta = delta,
-   # )
-
-
-    # Make sure to start with a stable parameterization
-    #l_init = Functions.loss_ude(p_init, predict_ude, data)[1]
-    #println("Initial loss: $l_init")
-#========================================================
-    while l_init > 1e4
-		println("Unstable initial parameterization. Restarting..., $l_init")
-        # Initialise parameters
-        nn_params, st = Lux.setup(rng, beta_network)
-        nn_params = ComponentArray(nn_params)
-
-
-        # Combine all parameters into a single object for optimisation
-        p_init = ComponentArray(
-            nn_params = nn_params,
-            beta0 = beta0,
-            zeta = zeta,
-            r0_recovered = R0_recovered,
-            delta = delta
-        )
-        l_init = Functions.loss_ude(p_init, predict_ude, data)[1]
-	end
-=========================================================# 
-
-    halt_condition = l -> (abs(l) < 0.01)
-    p_trained, losses_final = train_ude(nn_params, maxiters = maxiters, halt_condition = halt_condition)
+    p_trained, losses_final = train_ude(nn_params, maxiters = maxiters)
 
     # Save the trained parameters and losses for the combined trajectories
 
@@ -316,63 +292,64 @@ function run_model()
     root = datadir("synthesised_trajectories")
     # Read all files/folders in the root directory
     for filename in readdir(root)
-        # Extract trajectory of infectious individuals
-        dataset = load(datadir("synthesised_trajectories", filename))
-        data = dataset["infectious"]
-        days = dataset["days"]
+        if endswith(filename, ".jld2")
+            # Extract trajectory of infectious individuals
+            dataset = load(datadir("synthesised_trajectories", filename))
+            data = dataset["infectious"]
+            days = dataset["days"]
 
-        varying_p = ComponentArray(
-            population = dataset["varying_p"]["population"],
-            prevalence = dataset["varying_p"]["prevalence"],
-            delta = dataset["varying_p"]["delta"],
-            R0_reproduction = dataset["varying_p"]["R0_reproduction"],
-            zeta = dataset["varying_p"]["zeta"]
-        )
+            varying_p = ComponentArray(
+                population = dataset["varying_p"]["population"],
+                prevalence = dataset["varying_p"]["prevalence"],
+                delta = dataset["varying_p"]["delta"],
+                R0_reproduction = dataset["varying_p"]["R0_reproduction"],
+                zeta = dataset["varying_p"]["zeta"]
+            )
 
-        # Derive beta0 specific to current trajectory
-        beta0 = varying_p.R0_reproduction * (gamma + varying_p.delta)
+            # Derive beta0 specific to current trajectory
+            beta0 = varying_p.R0_reproduction * (gamma + varying_p.delta)
 
-        # Update the parameters for the current trajectory to include the varying parameters
-        p_all = ComponentArray(
-            nn_params = p_trained,
-            population = varying_p.population,
-            prevalence = varying_p.prevalence,
-            beta0 = beta0,
-            zeta = varying_p.zeta,
-            r0_recovered = R0_recovered,
-            delta = varying_p.delta
-        )
+            # Update the parameters for the current trajectory to include the varying parameters
+            p_all = ComponentArray(
+                nn_params = p_trained,
+                population = varying_p.population,
+                prevalence = varying_p.prevalence,
+                beta0 = beta0,
+                zeta = varying_p.zeta,
+                r0_recovered = R0_recovered,
+                delta = varying_p.delta
+            )
 
-        # Define initial state
-        I0 = max(1.0, p_all.prevalence * p_all.population)
-        S0 = p_all.population - E0 - I0 - R0_recovered - D0
-        init_state = [S0, E0, I0, R0_recovered, D0]
+            # Define initial state
+            I0 = max(1.0, p_all.prevalence * p_all.population)
+            S0 = p_all.population - E0 - I0 - R0_recovered - D0
+            init_state = [S0, E0, I0, R0_recovered, D0]
 
-        # Evaluate prediction for the trained parameters on the current trajectory
-        long_term_prob= remake(prob_ude, u0 = init_state, p = p_all)
-        long_term_pred = solve(long_term_prob, Rosenbrock23(), saveat=1, dense = false)
-        
-        # Convert to a 1 x N matrix
-        x_hat = reshape(long_term_pred[3, 1:length(data)], 1, :)
+            # Evaluate prediction for the trained parameters on the current trajectory
+            long_term_prob= remake(prob_ude, u0 = init_state, p = p_all)
+            long_term_pred = solve(long_term_prob, Rosenbrock23(), saveat=1, dense = false)
+            
+            # Convert to a 1 x N matrix
+            x_hat = reshape(long_term_pred[3, 1:length(data)], 1, :)
 
-        # Define the neural network input for the current trajectory 
-        # Keep beta, zeta, delta constant over time
-        nn_input = vcat(fill(p_all.beta0, 1, length(days)), fill(p_all.zeta, 1, length(days)), 
-             fill(p_all.delta, 1, length(days)), reshape(x_hat ./ p_all.population, 1, :), reshape(days ./ train_length, 1, :))
+            # Define the neural network input for the current trajectory 
+            # Keep beta, zeta, delta constant over time
+            nn_input = vcat(fill(p_all.beta0, 1, length(days)), fill(p_all.zeta, 1, length(days)), 
+                fill(p_all.delta, 1, length(days)), reshape(x_hat ./ p_all.population, 1, :), reshape(days ./ train_length, 1, :))
 
-        # Evaluate neural network and extract approximation
-        beta_traj = beta_network(nn_input, p_trained, st_nn)[1]
+            # Evaluate neural network and extract approximation
+            beta_traj = beta_network(nn_input, p_trained, st_nn)[1]
 
-        # Within this folder create a folder for each trajectory
-        if !isdir(datadir("sims", model_name, sim_name, foldername, filename)) 
-            mkpath(datadir("sims", model_name, sim_name, foldername, filename))
+            # Within this folder create a folder for each trajectory
+            if !isdir(datadir("sims", model_name, sim_name, foldername, filename)) 
+                mkpath(datadir("sims", model_name, sim_name, foldername, filename))
+            end
+
+            # In this folder save the infectious trajectory results and the beta results for this trajectory
+            save(datadir("sims", model_name, sim_name, foldername, filename, "results.jld2"), 
+                "infectious_traj_prediction", Array(long_term_pred), "beta_traj", beta_traj,
+                "days", days)
         end
-
-        # In this folder save the infectious trajectory results and the beta results for this trajectory
-        save(datadir("sims", model_name, sim_name, foldername, filename, "results.jld2"), 
-            "infectious_traj_prediction", Array(long_term_pred), "beta_traj", beta_traj,
-            "days", days)
-        
     end
     println("Finished run: $(foldername) on thread $(Threads.threadid())")
 	return nothing

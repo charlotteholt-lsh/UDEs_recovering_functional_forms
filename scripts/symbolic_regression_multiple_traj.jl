@@ -27,7 +27,7 @@ SET UP
 =============================================================#
 
 # Define simulation name
-sim_name = "synthesised_use_5_inputs_optimal_250326"
+sim_name = "synthesised_use_normalised_infections_optimal_250326"
 
 # Define the NN architecture
 hidden_dims = 5

@@ -85,7 +85,9 @@ function plot_simulation(sim_name, plot_title)
 
 end
 
-
+#========================================================
+PRODUCE ENSEMBLE PLOTS
+=========================================================# 
 # sim_name = "synthesised_use_normalised_infections_optimal_250326"
 # plot_title = "Optimal prediction 5 inputs 250326"
 # plot_simulation(sim_name, plot_title)
@@ -166,9 +168,14 @@ function plot_individual_traj(sim_num, sim_name, synthesised_data)
     return traj_plot, beta_plot
 end
 
+#========================================================
+PRODUCE PLOTS OF SIMULATIONS
+=========================================================# 
+
+
 sim_num = "simulation_v1"
 sim_name = "synthesised_use_5_inputs_optimal_250326"
-for filename in readdir(datadir("sims", "ude_multiple", sim_name, sim_num))
+for filename in readdir(datadir("sims", "ude_multiple", sim_name, sim_num), endswith=".jld2")
     if isdir(joinpath(datadir("sims", "ude_multiple", sim_name, sim_num, filename)))
         plot_individual_traj(sim_num, sim_name, filename)
     end
