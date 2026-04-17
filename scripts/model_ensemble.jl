@@ -86,12 +86,91 @@ function plot_simulation(sim_name, plot_title)
 end
 
 
-sim_name = "synthesised_use_normalised_infections_optimal_250326"
-plot_title = "Optimal prediction 250326"
-plot_simulation(sim_name, plot_title)
+# sim_name = "synthesised_use_normalised_infections_optimal_250326"
+# plot_title = "Optimal prediction 5 inputs 250326"
+# plot_simulation(sim_name, plot_title)
 
+#=============================================================
+FUNCTION TO PLOT APPROXIMATED FUNCTION AGAINST SYNTHESISED DATA
+=============================================================#
 
+function plot_individual_traj(sim_num, sim_name, synthesised_data)
 
+    # Load the observed data and varying parameters
+    dataset = load(datadir("synthesised_trajectories", synthesised_data))
+    varying_p = ComponentArray(
+        population = dataset["varying_p"]["population"],
+        prevalence = dataset["varying_p"]["prevalence"],
+        delta = dataset["varying_p"]["delta"],
+        R0_reproduction = dataset["varying_p"]["R0_reproduction"],
+        zeta = dataset["varying_p"]["zeta"]
+    )
 
+    # Derive beta0 specific to current trajectory
+    beta0 = varying_p.R0_reproduction * (gamma + varying_p.delta)
 
+    # Just use infectious trajectory
+    obs = dataset["infectious"]
+    days = dataset["days"]
+
+    # Define the root file path
+    root = datadir("sims", "ude_multiple", sim_name, sim_num, synthesised_data, "results.jld2")
+    plot_dir = dirname(root)
+
+    # Extract predictions for epidemic trajectory
+    results = load(root)
+    pred = results["infectious_traj_prediction"]
+
+    # Extract the predicted infectious trajectory for the training data
+    i_traj = pred[3, 1:length(obs)]
+
+    # Extract beta trajectory
+    beta_pred = results["beta_traj"]
+
+    # Define beta function
+    function true_beta(I)
+        arg_exp = clamp(varying_p.zeta * varying_p.delta * I, -50.0, 50.0)
+        beta = beta0 * exp(-arg_exp)
+        return beta
+    end
+
+    # Generate true beta values
+    beta_true = true_beta.(i_traj)
+    
+    # Ensure both are vectors
+    if ndims(beta_true) > 1
+        beta_true = vec(beta_true)
+    end
+    if ndims(beta_pred) > 1
+        beta_pred = vec(beta_pred)
+    end
+    
+    # Create trajectory plot
+    traj_plot = plot(days[1:length(i_traj)], obs[1:length(i_traj)], color=:black, markersize=2, label="Data", 
+    xlabel="Day", ylabel="Infectious individuals", title="Infectious trajectory for $(sim_name)", legend=:topright)
+    plot!(traj_plot, days[1:length(i_traj)], i_traj, color=:red, linewidth=2, label="Predicted trajectory")
+    display(traj_plot)
+
+    # Save the plot
+    savefig(traj_plot, joinpath(plot_dir, "traj_plot.png"))
+
+    # Create beta plot
+    beta_plot = plot(days[1:length(beta_true)], beta_true, color=:blue, linewidth=2, label="True beta", 
+    xlabel="Day", ylabel="Beta", title="Beta trajectory for $(sim_name)", legend=:topright)
+    plot!(beta_plot, days[1:length(beta_pred)], beta_pred, color=:red, linewidth=2, label="Predicted beta")
+    display(beta_plot)
+
+    # Save the plot
+    savefig(beta_plot, joinpath(plot_dir, "beta_plot.png"))
+
+    return traj_plot, beta_plot
+end
+
+sim_num = "simulation_v1"
+sim_name = "synthesised_use_5_inputs_optimal_250326"
+for filename in readdir(datadir("sims", "ude_multiple", sim_name, sim_num))
+    if isdir(joinpath(datadir("sims", "ude_multiple", sim_name, sim_num, filename)))
+        plot_individual_traj(sim_num, sim_name, filename)
+    end
+end
 
