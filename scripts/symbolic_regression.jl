@@ -26,13 +26,13 @@ using Random; rng = Random.default_rng()
 SET UP
 =============================================================#
 
-# Define simulation name and training length
-sim_name = "synthesised_use_infections_optimal_250326"
+# Define simulation name
+sim_name = "synthesised_use_5_inputs_optimal_250326"
 
 # Define the NN architecture
 hidden_dims = 5
 
-beta_network = Lux.Chain(Lux.Dense(2=>hidden_dims, gelu), Lux.Dense(hidden_dims=>hidden_dims, gelu),
+beta_network = Lux.Chain(Lux.Dense(5=>hidden_dims, gelu), Lux.Dense(hidden_dims=>hidden_dims, gelu),
                          Lux.Dense(hidden_dims=>1, softplus))
 
 # Initialise parameters
@@ -46,14 +46,15 @@ CREATE BASIS
 =============================================================#
 
 # Generate library of candidate functions
-# We have one state variable u[1](t)
-@variables t u(t)[1:1]
+# We have four neural network inputs and time
+@variables t u[1:4]
 # Normalise the number of infectious individuals so that the exponential term doesn't overflow
-u_scaled = u[1] / population
-poly_terms = DataDrivenDiffEq.polynomial_basis([u_scaled], 3)
-h = Num[vcat(poly_terms, [exp(u_scaled)])...]
+#u[1] = u[1] / population
+u_vec = collect(u)
+poly_terms = DataDrivenDiffEq.polynomial_basis(u_vec, 3)
+h = Num[vcat(poly_terms, exp.(u_vec))...]
 # Define basis
-basis = DataDrivenDiffEq.Basis(h, u, iv = t)
+basis = DataDrivenDiffEq.Basis(h, u_vec, iv = t)
 
 
 #=============================================================
@@ -61,7 +62,7 @@ RETRIEVE PREDICTIONS AND PARAMETERS FROM THE BEST SIMULATION
 =============================================================#
 
 # Load the observed data
-dataset = load(datadir("synthesised_trajectories", "synthetic_pop=6892503_E0=0.0_R0=0.0_D0=0.0_sig=0.333_gam=0.1_zet=0.02_prev=1.04e-5_del=0.000131_R0r=5.28.jld2"))
+dataset = load(datadir("synthesised_trajectories_old", "synthetic_pop=6892503_E0=0.0_R0=0.0_D0=0.0_sig=0.333_gam=0.1_zet=0.02_prev=1.04e-5_del=0.000131_R0r=5.28.jld2"))
    
 # Just use infectious trajectory
 obs = dataset["infectious"]

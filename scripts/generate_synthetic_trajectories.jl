@@ -83,22 +83,22 @@ FUNCTION TO RUN THE MODEL
 # Define function to run the SEIRD model with a functional form for beta
 # p must be of the form (beta0, delta, sigma, gamma, zeta)
 # fixed_p must be of the form (sigma, gamma, zeta, population, E0, R0_recovered, D0)
-# estimated_p must be of the form (prevalence, delta, R0_reproduction)
-function run_seird_functional_form(fixed_p, estimated_p, obs_length, smoothing_window = 7)
+# varying_p must be of the form (population,prevalence, delta, R0_reproduction)
+function run_seird_functional_form(fixed_p, varying_p, obs_length, smoothing_window = 7)
 
     # Retrieve fixed parameters
     sigma = fixed_p.sigma
     gamma = fixed_p.gamma
-    N = fixed_p.population
     E0 = fixed_p.E0
     R0_recovered = fixed_p.R0_recovered 
     D0 = fixed_p.D0
 
     # Retrieve estimated parameters
-    prevalence = estimated_p.prevalence
-    delta = estimated_p.delta
-    R0_reproduction = estimated_p.R0_reproduction
-    zeta = estimated_p.zeta
+    N = varying_p.population
+    prevalence = varying_p.prevalence
+    delta = varying_p.delta
+    R0_reproduction = varying_p.R0_reproduction
+    zeta = varying_p.zeta
 
     # Derive other parameters
     beta0 = R0_reproduction * (gamma + delta)
@@ -133,9 +133,9 @@ function run_seird_functional_form(fixed_p, estimated_p, obs_length, smoothing_w
     return sol
 end
 
-function generate_synthetic_data(fixed_p, estimated_p, obs_length, location, smoothing_window = 7)
+function generate_synthetic_data(fixed_p, varying_p, obs_length, location, smoothing_window = 7)
     # Run model
-    sim = run_seird_functional_form(fixed_p, estimated_p, obs_length, smoothing_window)
+    sim = run_seird_functional_form(fixed_p, varying_p, obs_length, smoothing_window)
 
     # Extract raw states 
     s_traj = sim[1, :]
@@ -152,7 +152,7 @@ function generate_synthetic_data(fixed_p, estimated_p, obs_length, location, smo
 
 
 	save(datadir("synthesised_trajectories", fname),
-		"fixed_p", fixed_p, "estimated_p", estimated_p, "days", 1:obs_length, 
+		"fixed_p", fixed_p, "varying_p", varying_p, "days", 1:obs_length, 
         "susceptible", s_traj, "exposed", e_traj, "infectious", i_traj, "recovered", r_traj, "deaths", d_traj)
 
     println("Finished generating synthetic data for $(fname)")
@@ -170,9 +170,9 @@ DEFINE PARAMETERS AND GENERATE SYNTHETIC DATA
 # They do not influence the transmission rate that we are trying to learn
 
 # Initial conditions
-E0 = 1.0
-R0 = 0.0
-D0 = 0.0
+const E0 = 1.0
+const R0_recovered = 0.0
+const D0 = 0.0
 
 # Latent period of 3 days represented by incubation rate sigma
 const sigma = 1/3 
@@ -197,23 +197,16 @@ for location in keys(POPULATION)
     # Create component arrays
     fixed_p = ComponentArray(sigma = sigma,     
                             gamma = gamma, 
-                            population = population,
                             E0 = E0, 
-                            R0_recovered = R0, 
+                            R0_recovered = R0_recovered, 
                             D0 = D0)
 
-    estimated_p = ComponentArray(prevalence = prevalence, 
+    varying_p = ComponentArray(population = population,
+                                prevalence = prevalence, 
                                 delta = delta, 
                                 R0_reproduction = R0_reproduction,
                                 zeta = zeta)
 
     # Generate data and save to JLD2 file
-    generate_synthetic_data(fixed_p, estimated_p, 365, location)
+    generate_synthetic_data(fixed_p, varying_p, 365, location)
 end
-
-# Extract infectious trajectory from JLD2 file
-dataset = load(datadir("synthesised_trajectories", "synthetic_pop=6892503_E0=0.0_R0=0.0_D0=0.0_sig=0.333_gam=0.1_zet=0.02_prev=1.04e-5_del=0.000131_R0r=5.28.jld2"))
-
-# Plot infections
-infections = dataset["infectious"]
-display(plot(1:length(infections), infections, label="Generated data", xlabel="Days", ylabel="Infections", title="Infections over time"))
