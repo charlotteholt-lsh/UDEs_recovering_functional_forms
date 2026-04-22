@@ -27,8 +27,8 @@ using Random; rng = Random.default_rng()
 SET UP
 =============================================================#
 
-# Define simulation name and training length
-sim_name = "synthesised_use_normalised_infections_optimal_250326"
+# Define simulation name -- name of the directory containing the 100 sims of UDE training
+sim_name = "210426_synthesised_use_normalised_infections_optimal_250326"
 
 # Define the NN architecture
 hidden_dims = 5
@@ -63,7 +63,7 @@ RETRIEVE PREDICTIONS AND PARAMETERS FROM THE BEST SIMULATION
 =============================================================#
 
 # Load the observed data
-dataset = load(datadir("synthesised_trajectories_old", "synthetic_pop=6892503_E0=0.0_R0=0.0_D0=0.0_sig=0.333_gam=0.1_zet=0.02_prev=1.04e-5_del=0.000131_R0r=5.28.jld2"))
+dataset = load(datadir("synthesised_trajectories_single", "synthesised_MA.jld2"))
    
 # Just use infectious trajectory
 obs = dataset["infectious"]
@@ -162,11 +162,19 @@ const E0 = 1.0
 const R0_recovered = 0.0
 const D0 = 0.0
 
-# EXTRACTED USING GROUND_TRUTH_VALUES FOR MA IN THE PYTHON CODE
-const prevalence = exp(-11.468967)
-const R0_reproduction = 5.284404
-const zeta = 0.02
-const delta = exp(-8.941224)
+
+
+# Extract from estimated ground truths
+include("estimated_ground_truth_parameters.jl")
+using .EstimatedGroundTruthParameters: POPULATION, PREVALENCE, R0_REPRODUCTION, DELTA, ZETA
+
+location = "MA"
+population = POPULATION[location]
+prevalence = PREVALENCE[location]
+delta = DELTA[location]
+R0_reproduction = R0_REPRODUCTION[location]
+zeta = ZETA[location]
+
 
 
 # Derive other parameters
