@@ -52,7 +52,8 @@ CREATE BASIS
 # Normalise the number of infectious individuals so that the exponential term doesn't overflow
 u_scaled = u[1] / population
 poly_terms = DataDrivenDiffEq.polynomial_basis([u_scaled], 3)
-h = Num[vcat(poly_terms, [exp(u_scaled)])...]
+h = Num[vcat(poly_terms, [exp(-u_scaled)])...]
+
 # Define basis
 basis = DataDrivenDiffEq.Basis(h, u, iv = t)
 
@@ -120,7 +121,7 @@ nn_problem = DataDrivenDiffEq.DirectDataDrivenProblem(x_hat, y_hat)
 
 # Use STLSQ to solve the sparse regression problem
 # Define the shrinking cut off
-lambda = 1e-4
+lambda = 1e-1
 opt = DataDrivenSparse.STLSQ(lambda)
 
 # lambdas = exp10.(-3:0.1:3)
@@ -129,11 +130,7 @@ opt = DataDrivenSparse.STLSQ(lambda)
 # Solve the sparse regression problem
 options = DataDrivenDiffEq.DataDrivenCommonOptions(maxiters = 10_000,
           normalize = DataDrivenDiffEq.DataNormalization(DataDrivenDiffEq.ZScoreTransform),
-          selector = DataDrivenDiffEq.bic, digits = 1,
-          data_processing = DataDrivenDiffEq.DataProcessing(split = 0.9,
-          batchsize = 30,
-          shuffle = true,
-          rng = rng))
+          selector = DataDrivenDiffEq.bic, digits = 1)
 
 nn_res = DataDrivenDiffEq.solve(nn_problem, basis, opt, options=options)
 # nn_res = DataDrivenDiffEq.solve(nn_problem, basis, opt, progress=true, normalize=true, denoise=false)
@@ -273,12 +270,23 @@ beta_nn = vec(y_hat)
 # Recovered beta evaluated along the SINDy approximation
 beta_recovered = [nn_res([I], nn_params, t)[1] for (I, t) in zip(pred_sindy[3, :], pred_sindy.t)]
 
+# Exponential term from recovered equation:
+# p5 * exp(-1.4508517442792552e-7 * I(t))
+const exp_coeff = 1.4508517442792552e-7
+p5 = -82549.2
+p1 = 82549.7
+p2 = -82557.3
+p3 = 41302.2
+beta_exp_term = p1.+p5 .* exp.(-exp_coeff .* I_true) .+2.1049707838781574e-14.*p3.*(I_true.^2)
+#beta_exp_term = p1.+p5 .* exp.(-exp_coeff .* I_true) .+ 1.4508517442792552e-7 .* p2 .* I_true
+#.- 83.9 + 1.4508517442792552e-7 * p2 .* I_true
+
 #=============================================================
 PLOT RESULTS
 =============================================================#
 
 # Plot predicted trajectories (UDE and SINDy model) against the observed data
-p1 = plot(days, obs, label="Observed data", lw=2)
+p1 = plot(days, obs, label="Observed data", lw=2, legend=:topright)
 plot!(p1, days, i_traj_nn, label="NN trajectory", lw=2, ls=:dot)
 plot!(p1, pred_sindy.t, pred_sindy[3, :], label="SINDY prediction", lw=2, ls=:dash)
 xlabel!(p1, "Day")
@@ -286,8 +294,10 @@ ylabel!(p1, "Daily deaths")
 title!(p1, "SINDY approximation of daily deaths")
 mse_sindy = Functions.loss_mse(pred_sindy[3, :], obs)
 mse_nn = Functions.loss_mse(i_traj_nn, obs)
-annotate!(p1, days[end], maximum(obs), text("MSE SINDY: $(round(mse_sindy, digits=4))", 9, :right))
-annotate!(p1, days[end], maximum(obs) * 0.9, text("MSE NN: $(round(mse_nn, digits=4))", 9, :right))
+x_ann = days[end]
+y_top = maximum(obs)
+annotate!(p1, x_ann, y_top * 0.70, text("MSE SINDY: $(round(mse_sindy, digits=4))", 9, :right))
+annotate!(p1, x_ann, y_top * 0.62, text("MSE NN: $(round(mse_nn, digits=4))", 9, :right))
 
 # Plot the beta trajectories evaluated against their respective predicted/observed trajectories
 p2 = plot(days, beta_true, label="True β from true ODE I(t)", lw=2)
@@ -322,3 +332,12 @@ title!(p_beta, "Learned vs true transmission rate")
 display(p_beta)
 
 savefig(p_beta, joinpath(@__DIR__, "figures", "$(sim_name)_sindy_beta_comparison.png"))
+
+# Plot exponential term against the true beta trajectory
+p_exp = plot(days, beta_true, label = "True β", lw = 2, color = :black)
+plot!(p_exp, days, beta_exp_term, label = "p₁+p₅·exp(-1.4508517442792552e-7·I(t))+2.1049707838781574e-14p₃·I(t)²", lw = 2, color = :purple, ls = :dash)
+xlabel!(p_exp, "Day")
+ylabel!(p_exp, "β")
+title!(p_exp, "Recovered exponential term and constant term and quadratic term vs true β")
+display(p_exp)
+savefig(p_exp, joinpath(@__DIR__, "figures", "$(sim_name)_sindy_exponential_and_constant_and_quadratic_term.png"))
