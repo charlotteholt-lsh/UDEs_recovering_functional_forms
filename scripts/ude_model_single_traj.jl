@@ -25,8 +25,8 @@ DEFINE HYPERPARAMETERS
 =========================================================#
 
 # Define strings for file names and directory for results
-sim_name ="synthesised_use_normalised_infections_optimal_250326"
-model_name = "ude"
+sim_name ="210426_synthesised_use_normalised_infections_optimal_250326"
+model_name = "ude_single"
 if !isdir(datadir("sims", model_name, sim_name)) 
 	mkpath(datadir("sims", model_name, sim_name))
 end
@@ -43,7 +43,7 @@ n_sims = 100
 LOAD DATA
 =========================================================#
 
-dataset = load(datadir("synthesised_trajectories_old", "synthetic_pop=6892503_E0=0.0_R0=0.0_D0=0.0_sig=0.333_gam=0.1_zet=0.02_prev=1.04e-5_del=0.000131_R0r=5.28.jld2"))
+dataset = load(datadir("synthesised_trajectories_single", "synthesised_MA.jld2"))
 
 # Extract infectious individuals and days from the dataset
 data = dataset["infectious"]
@@ -68,9 +68,9 @@ const R0_recovered = 0.0
 const D0 = 0.0
 
 # EXTRACTED USING GROUND_TRUTH_VALUES FOR MA IN THE PYTHON CODE
-const prevalence = exp(-11.468967)
-const R0_reproduction = 5.284404
-const delta = exp(-8.941224)
+prevalence = exp(-11.547632)
+R0_reproduction = 5.326242
+delta = exp(-8.943881)
 
 
 # Derive other parameters
@@ -86,7 +86,7 @@ SET UP MODEL
 =========================================================#
 
 # Define the timespan for the ODE solver
-tspan = [0, train_length]
+tspan = [1, train_length]
 
 # Create neural network to estimate the transmission rate:
 # We have two hidden layers with hidden_dims neurons and gelu activation function
@@ -267,7 +267,7 @@ function run_model()
     p_trained, losses_final = train_ude(p_init, maxiters = maxiters)
 
     # Evaluate final long term results 
-    long_term_prob= remake(prob_ude, p = p_trained, tspan = (0.0, 3*365.0))
+    long_term_prob= remake(prob_ude, p = p_trained, tspan = (1.0, 3*365.0))
     long_term_pred = solve(long_term_prob, Rosenbrock23(), saveat=1, dense = false)
 
     region = "Massachusetts"
@@ -276,7 +276,7 @@ function run_model()
 	# Save the result
 	fname = "$(region)_$(param_name)_t$(Threads.threadid())"
 
-	# Append a number ot the end of the simulation to allow multiple runs of a single set of hyperparameters for ensemble predictions
+	# Append a number to the end of the simulation to allow multiple runs of a single set of hyperparameters for ensemble predictions
 	model_iteration = 1
 	while isdir(datadir("sims", model_name, sim_name, "$(fname)_v$(model_iteration)"))
 		model_iteration += 1

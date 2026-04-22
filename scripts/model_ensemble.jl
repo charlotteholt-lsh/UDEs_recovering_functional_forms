@@ -25,13 +25,13 @@ FUNCTION TO GENERATE PLOTS OF SIMULATIONS
 function plot_simulation(sim_name, plot_title)
 
     # Load the observed data
-    dataset = load(datadir("synthesised_trajectories", "synthetic_pop=6892503_E0=0.0_R0=0.0_D0=0.0_sig=0.333_gam=0.1_zet=0.02_prev=1.04e-5_del=0.000131_R0r=5.28.jld2"))
+    dataset = load(datadir("synthesised_trajectories_single", "synthesised_MA.jld2"))
     # Just use infectious trajectory
     obs = dataset["infectious"]
     days = dataset["days"]
 
     # Define the root file path
-    root = datadir("sims", "ude", sim_name)
+    root = datadir("sims", "ude_single", sim_name)
     # Create empty array to store predictions with initial mortalities 0
     all_predictions = []
     # Read all files/folders in the root directory
@@ -39,7 +39,7 @@ function plot_simulation(sim_name, plot_title)
         # Only include directories
         if isdir(joinpath(root, filename))
             # Extract results, predictions and losses
-            results = load(datadir("sims", "ude", sim_name, filename, "results.jld2"))
+            results = load(datadir("sims", "ude_single", sim_name, filename, "results.jld2"))
             pred = results["prediction"]
             # Extract the predicted infectious trajectory for the training data
             i_traj = pred[3, 1:length(obs)]
@@ -66,20 +66,20 @@ function plot_simulation(sim_name, plot_title)
     mse = Functions.loss_mse(median_prediction, obs)
 
     # Save to a JLD2 file
-    save(datadir("sims", "ude", sim_name, "summary.jld2"), "median_prediction", median_prediction, "upper_quantile", upper_quantile, "lower_quantile", lower_quantile, "mse", mse)
+    save(datadir("sims", "ude_single", sim_name, "summary.jld2"), "median_prediction", median_prediction, "upper_quantile", upper_quantile, "lower_quantile", lower_quantile, "mse", mse)
 
     # Create plot
     x = days[1:length(prediction_matrix[1, :])]
     pl = scatter(x, obs[1:length(prediction_matrix[1, :])], color=:black, markersize=2,
-    label="Data", xlabel="Day", ylabel="Daily deaths", title="$plot_title", legend=:topright)
+    label="Data", xlabel="Day", ylabel="Infection prevalence", title="$plot_title", legend=:topright)
     x_annot = x[end] - 0.02 * (x[end] - x[1])
-    y_annot = maximum(obs[1:length(prediction_matrix[1, :])]) * 0.88
+    y_annot = maximum(obs[1:length(prediction_matrix[1, :])]) * 0.8
     annotate!(pl, x_annot, y_annot, text("MSE: $(round(mse, digits=4))", 9, :right))
     plot!(pl, x, median_prediction, color=:red, linewidth=2, ribbon = ((median_prediction - lower_quantile), (upper_quantile - median_prediction)), label="Median prediction")
     display(pl)
 
     # Save the plot
-    savefig(pl, datadir("sims", "ude", sim_name, "prediction_plot.png"))
+    savefig(pl, datadir("sims", "ude_single", sim_name, "prediction_plot.png"))
 
     return pl
 
@@ -88,12 +88,12 @@ end
 #========================================================
 PRODUCE ENSEMBLE PLOTS
 =========================================================# 
-# sim_name = "synthesised_use_normalised_infections_optimal_250326"
-# plot_title = "Optimal prediction 5 inputs 250326"
-# plot_simulation(sim_name, plot_title)
+sim_name = "210426_synthesised_use_normalised_infections_optimal_250326"
+plot_title = "Single-trajectory UDE model predictions 100 sims"
+plot_simulation(sim_name, plot_title)
 
 #=============================================================
-FUNCTION TO PLOT APPROXIMATED FUNCTION AGAINST SYNTHESISED DATA
+FUNCTION TO PLOT APPROXIMATED FUNCTION AGAINST SYNTHESISED DATA 
 =============================================================#
 
 function plot_individual_traj(sim_num, sim_name, synthesised_data)
@@ -173,10 +173,10 @@ PRODUCE PLOTS OF SIMULATIONS
 =========================================================# 
 
 
-sim_num = "simulation_v1"
+sim_num = "simulation_v2"
 sim_name = "synthesised_use_5_inputs_optimal_250326"
-for filename in readdir(datadir("sims", "ude_multiple", sim_name, sim_num), endswith=".jld2")
-    if isdir(joinpath(datadir("sims", "ude_multiple", sim_name, sim_num, filename)))
+for filename in readdir(datadir("sims", "ude_multiple", sim_name, sim_num))
+    if endswith(filename, ".jld2") && isdir(datadir("sims", "ude_multiple", sim_name, sim_num, filename))
         plot_individual_traj(sim_num, sim_name, filename)
     end
 end

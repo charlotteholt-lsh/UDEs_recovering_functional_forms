@@ -82,7 +82,7 @@ ph_nn = ComponentArray(
                 prevalence = 0,
                 beta0 = 0,
                 zeta = 0,
-                r0_recovered = 0,
+                r0_reproduction = 0,
                 delta = 0
             )
 
@@ -183,6 +183,7 @@ function train_ude(nn_params; maxiters = maxiters)
         
         # Loop through all simulations
         individual_losses = Float64[]
+        # Sum the gradients with respect to the NN parameters only
         grad_sum = zero(nn_params)
 
         for traj in trajectories
@@ -200,7 +201,7 @@ function train_ude(nn_params; maxiters = maxiters)
                 prevalence = varying_p.prevalence,
                 beta0 = beta0,
                 zeta = varying_p.zeta,
-                r0_recovered = R0_recovered,
+                r0_reproduction = varying_p.R0_reproduction,
                 delta = varying_p.delta
             )
 
@@ -210,8 +211,9 @@ function train_ude(nn_params; maxiters = maxiters)
 
             # Evaluate the gradient of the loss for the current trajectory w.r.t p_all
             grad = back_all((one(l), nothing))[1]
-        
+            
             push!(individual_losses, l)
+
             grad_sum .+= grad.nn_params
 
         end
@@ -239,19 +241,6 @@ function train_ude(nn_params; maxiters = maxiters)
             best_loss = total_loss
             best_nn_params = nn_params
         end
-
-#========================================================
-RUN WITHOUT PLOTTING
-        if iter % 50 == 0
-            display("Total loss: $total_loss")
-            x = days[1:length(pred)]
-            pl = scatter(x, data[1:length(pred)], color=:black, markersize=2,
-                label="Data", xlabel="Day", ylabel="Daily new infections", title="Iteration $iter")
-            plot!(pl, x, pred, color=:red, linewidth=2, label="Prediction")
-            display(pl)
-		end	
-========================================================#
-
 
         # Update parameters using the gradient
         optimised_state, nn_params = Optimisers.update(optimised_state, nn_params, total_grad)
@@ -283,7 +272,7 @@ function run_model()
     end
     foldername = "simulation_v$model_iteration"
 
-    save(datadir("sims", model_name, sim_name, "training_results.jld2"), 
+    save(datadir("sims", model_name, sim_name, foldername, "training_results.jld2"), 
     "p_trained", p_trained, "losses_final", losses_final)
 
     # Evaluate the trained model on each trajectory and save the results
@@ -316,7 +305,7 @@ function run_model()
                 prevalence = varying_p.prevalence,
                 beta0 = beta0,
                 zeta = varying_p.zeta,
-                r0_recovered = R0_recovered,
+                R0_reproduction = varying_p.R0_reproduction,
                 delta = varying_p.delta
             )
 

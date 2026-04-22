@@ -11,7 +11,7 @@ export loss_mse
 function loss_ude(p_all, predict_ude, data)
     pred = predict_ude(p_all)
 
-    # Align lengths defensively
+    # Align lengths
     n = min(length(pred), length(data))
     pred = pred[1:n]
     data = data[1:n]

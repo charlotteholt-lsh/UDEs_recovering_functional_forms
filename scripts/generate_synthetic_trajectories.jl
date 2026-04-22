@@ -39,7 +39,7 @@ function seird_functional!(du, u, p, t)
     end
 
     # Define the functional form of beta
-    arg_exp = clamp(p.zeta * p.delta * I, -50.0, 50.0)
+    arg_exp = clamp(p.zeta * p.delta * I, -100.0, 100.0)
     beta = p.beta0 * exp(-arg_exp)
 
     # Define the SEIRD equations
@@ -102,7 +102,7 @@ function run_seird_functional_form(fixed_p, varying_p, obs_length)
     return sol
 end
 
-function generate_synthetic_data(fixed_p, varying_p, obs_length, location, smoothing_window = 7)
+function generate_synthetic_data(fixed_p, varying_p, obs_length, location)
     # Run model
     sim = run_seird_functional_form(fixed_p, varying_p, obs_length)
 
@@ -117,10 +117,10 @@ function generate_synthetic_data(fixed_p, varying_p, obs_length, location, smoot
 
     # Save the result
     fname = "synthesised_$(location)" * ".jld2"
-	mkpath(datadir("synthesised_trajectories"))
+	mkpath(datadir("synthesised_trajectories_single"))
 
 
-	save(datadir("synthesised_trajectories", fname),
+	save(datadir("synthesised_trajectories_single", fname),
 		"fixed_p", fixed_p, "varying_p", varying_p, "days", 1:obs_length, 
         "susceptible", s_traj, "exposed", e_traj, "infectious", i_traj, "recovered", r_traj, "deaths", d_traj)
 
@@ -156,7 +156,9 @@ using .EstimatedGroundTruthParameters: POPULATION, PREVALENCE, R0_REPRODUCTION, 
 
 
 # Loop through each combination of parameters for each state and generate synthetic data
-for location in keys(POPULATION)
+#for location in keys(POPULATION)
+# Just generating a single trajectory
+for location in ["MA"]
     population = POPULATION[location]
     prevalence = PREVALENCE[location]
     delta = DELTA[location]
