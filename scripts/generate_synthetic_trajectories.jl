@@ -158,7 +158,7 @@ using .EstimatedGroundTruthParameters: POPULATION, PREVALENCE, R0_REPRODUCTION, 
 # Loop through each combination of parameters for each state and generate synthetic data
 #for location in keys(POPULATION)
 # Just generating a single trajectory
-for location in ["MA"]
+for location in ["MD"]
     population = POPULATION[location]
     prevalence = PREVALENCE[location]
     delta = DELTA[location]

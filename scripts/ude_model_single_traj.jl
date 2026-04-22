@@ -25,7 +25,7 @@ DEFINE HYPERPARAMETERS
 =========================================================#
 
 # Define strings for file names and directory for results
-sim_name ="210426_synthesised_use_normalised_infections_optimal_250326"
+sim_name ="synthesised_use_normalised_infections_optimal_250326"
 model_name = "ude_single"
 if !isdir(datadir("sims", model_name, sim_name)) 
 	mkpath(datadir("sims", model_name, sim_name))
@@ -43,7 +43,7 @@ n_sims = 100
 LOAD DATA
 =========================================================#
 
-dataset = load(datadir("synthesised_trajectories_single", "synthesised_MA.jld2"))
+dataset = load(datadir("synthesised_trajectories_old", "synthetic_pop=6892503_E0=0.0_R0=0.0_D0=0.0_sig=0.333_gam=0.1_zet=0.02_prev=1.04e-5_del=0.000131_R0r=5.28.jld2"))
 
 # Extract infectious individuals and days from the dataset
 data = dataset["infectious"]
@@ -58,6 +58,8 @@ const sigma = 1/3
 # Infectious period of 10 days represented by recovery rate gamma
 const gamma = 1/10
 
+
+
 # Massachusetts population size - taken from JHU CSSE
 population = 6892503
 
@@ -67,11 +69,16 @@ const E0 = 1.0
 const R0_recovered = 0.0
 const D0 = 0.0
 
-# EXTRACTED USING GROUND_TRUTH_VALUES FOR MA IN THE PYTHON CODE
-prevalence = exp(-11.547632)
-R0_reproduction = 5.326242
-delta = exp(-8.943881)
+# Extract from estimated ground truths
+include("estimated_ground_truth_parameters.jl")
+using .EstimatedGroundTruthParameters: POPULATION, PREVALENCE, R0_REPRODUCTION, DELTA, ZETA
 
+location = "MD"
+population = POPULATION[location]
+prevalence = PREVALENCE[location]
+delta = DELTA[location]
+R0_reproduction = R0_REPRODUCTION[location]
+zeta = ZETA[location]
 
 # Derive other parameters
 beta0 = R0_reproduction * (gamma + delta)
