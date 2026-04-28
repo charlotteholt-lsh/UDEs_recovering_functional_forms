@@ -2,7 +2,7 @@
 
 julia_version = "1.12.5"
 manifest_format = "2.0"
-project_hash = "268b90aaf2f7e1b7038b434c6e1de5a0432265c7"
+project_hash = "be5310b76b7a978a0e8824d6b233e12b6c709aba"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "bbc22a9a08a0ef6460041086d8a7b27940ed4ffd"
@@ -740,6 +740,12 @@ deps = ["IrrationalConstants", "LogExpFunctions", "NaNMath", "Random", "SpecialF
 git-tree-sha1 = "23163d55f885173722d1e4cf0f6110cdbaf7e272"
 uuid = "b552c78f-8df3-52c6-915a-8e097449b14b"
 version = "1.15.1"
+
+[[deps.DifferentialEquations]]
+deps = ["OrdinaryDiffEq", "Reexport", "SciMLBase"]
+git-tree-sha1 = "076a5e999d38ffbba860d4c1ba49828855b65c14"
+uuid = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
+version = "8.0.0"
 
 [[deps.DifferentiationInterface]]
 deps = ["ADTypes", "LinearAlgebra"]

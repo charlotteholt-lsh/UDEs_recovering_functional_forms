@@ -140,21 +140,6 @@ function plot_individual_traj(sim_num, sim_name, synthesised_data)
     beta_true = true_beta.(i_traj)
     beta_true_obs = true_beta.(obs)  # debug comparator
 
-    # ---------- DEBUG CHECKS ----------
-    @info "DEBUG plot_individual_traj paths" synthesised_data root
-    @show size(obs) size(days) size(pred) size(beta_pred) size(i_traj)
-    @show extrema(obs) extrema(i_traj) extrema(beta_pred)
-    @show extrema(beta_true) extrema(beta_true_obs)
-
-    ncheck = min(5, length(days), length(obs), length(i_traj), length(beta_true), length(beta_pred))
-    @show days[1:ncheck]
-    @show obs[1:ncheck]
-    @show i_traj[1:ncheck]
-    @show beta_true[1:ncheck]
-    @show beta_true_obs[1:ncheck]
-    @show beta_pred[1:ncheck]
-    # ---------- END DEBUG CHECKS ----------
-    
     # Ensure both are vectors
     if ndims(beta_true) > 1
         beta_true = vec(beta_true)
