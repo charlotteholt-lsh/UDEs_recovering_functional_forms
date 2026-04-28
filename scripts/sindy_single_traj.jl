@@ -1,6 +1,6 @@
-#=============================================================
-SCRIPT TO RECOVER THE FUNCTIONAL FORM OF THE TRANSMISSION RATE FOR A SINGLE TRAJECTORY
-=============================================================#
+#=================================================================================================
+SCRIPT TO RECOVER THE FUNCTIONAL FORM OF THE TRANSMISSION RATE FOR A SINGLE TRAJECTORY USING SINDY
+==================================================================================================#
 
 using Pkg
 # Activate the project
@@ -76,13 +76,13 @@ exp_terms = [
 #poly_terms = DataDrivenDiffEq.polynomial_basis([u_scaled], 3)
 
 poly_terms = [
-    #1,    
+    1,    
     u[1],
     u[1]^2,
     u[1]^3
 ]
 
-h = Num[vcat([exp(-k*u_scaled)],  poly_terms)...]
+h = Num[vcat(exp_terms,  poly_terms)...]
 
 # Define basis
 basis = DataDrivenDiffEq.Basis(h, u)
@@ -136,7 +136,7 @@ days = best_results["days"]
 const train_length = 365
 
 # Extract NN approximation (normalised)
-nn_input = vcat(x_hat ./ population)
+nn_input = x_hat ./ population
 
 
 # Evaluate neural network and extract approximation
@@ -283,7 +283,7 @@ I_true = pred_true[3, :]
 beta_true = true_beta.(I_true)
 
 # Beta learned by the trained NN on the same true-system I(t)
-nn_input_true = vcat(reshape(I_true, 1, :)./population)
+nn_input_true = reshape(I_true, 1, :)./population
 beta_nn_on_true = vec(beta_network(nn_input_true, p_trained.nn_params, st_nn)[1])
 
 # Recovered beta evaluated along the same I(t) for comparison

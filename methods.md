@@ -137,7 +137,7 @@ $$
 $$
 ### Optimiser
 
-We use the Adam optimiser from `Optimisers.jl` with a learning rate of $\eta = 1e^{-3}$, running the training process for a maximum of 2,500 iterations. We retain the parameters that result in the lowest loss across all iterations. The model parameters were randomly initialised, and training is stopped if there are 5 consecutive infinite losses as this indicates an unstable parameter region.
+We use the Adam optimiser from `Optimisers.jl` with a learning rate of $\eta = 10^{-3}$, running the training process for a maximum of 2,500 iterations. We retain the parameters that result in the lowest loss across all iterations. The model parameters were randomly initialised, and training is stopped if there are 5 consecutive infinite losses as this indicates an unstable parameter region.
 
 We compute the gradient using reverse-mode automatic differentiation via `Zygote.jl`, using the `pullback` function.  The gradient with of the loss with respect to the neural network parameters is used to update the neural network weights.
 

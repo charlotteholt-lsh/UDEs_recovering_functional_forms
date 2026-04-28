@@ -1,6 +1,6 @@
-#=============================================================
-SCRIPT TO RECOVER THE FUNCTIONAL FORM OF THE TRANSMISSION RATE
-=============================================================#
+#===================================================================================================
+SCRIPT TO RECOVER THE FUNCTIONAL FORM OF THE TRANSMISSION RATE FOR MULTIPLE TRAJECTORIES USING SINDY
+===================================================================================================#
 using Pkg
 # Activate the project
 Pkg.activate(joinpath(@__DIR__, ".."))

@@ -92,7 +92,7 @@ tspan = [1, train_length]
 
 # Create neural network to estimate the transmission rate:
 # We have two hidden layers with hidden_dims neurons and gelu activation function
-# We are taking normalised t and I(t) as inputs and outputting beta(t)
+# We are taking normalised I(t) as an input and outputting beta(t)
 beta_network = Lux.Chain(Lux.Dense(1=>hidden_dims, gelu), Lux.Dense(hidden_dims=>hidden_dims, gelu),
                          Lux.Dense(hidden_dims=>1, softplus))
 
