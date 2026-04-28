@@ -76,13 +76,13 @@ exp_terms = [
 #poly_terms = DataDrivenDiffEq.polynomial_basis([u_scaled], 3)
 
 poly_terms = [
-    #1,    
+    1,    
     u[1],
     u[1]^2,
     u[1]^3
 ]
 
-h = Num[vcat([exp(-k*u_scaled)],  poly_terms)...]
+h = Num[vcat(exp_terms,  poly_terms)...]
 
 # Define basis
 basis = DataDrivenDiffEq.Basis(h, u)
