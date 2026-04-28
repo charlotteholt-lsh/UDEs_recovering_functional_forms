@@ -204,7 +204,7 @@ The library consists of:
 8. $\beta_0 \exp(-\zeta \delta I/N)$
 ### Sparse regression algorithm
 
-We identify the sparse coefficient vector using the Sequentially Thresholded Least Squares (STLSQ) algorithm, with a shrinking cut-off of $\lambda=e^{-2}$. STLSQ iteratively applies (until convergence) a least-squares algorithm, removing any coefficients $[\xi_{1}, \xi_{2}, \dots, \xi_{n}]$ that are less than the shrinking cut off $\lambda$.
+We identify the sparse coefficient vector using the Sequentially Thresholded Least Squares (STLSQ) algorithm, with a shrinking cut-off of $\lambda=10^{-2}$. STLSQ iteratively applies (until convergence) a least-squares algorithm, removing any coefficients $[\xi_{1}, \xi_{2}, \dots, \xi_{n}]$ that are less than the shrinking cut off $\lambda$.
 
 The regression is configured with:
 - Maximum iterations: 10,000
