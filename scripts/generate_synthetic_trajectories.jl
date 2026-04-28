@@ -39,7 +39,7 @@ function seird_functional!(du, u, p, t)
     end
 
     # Define the functional form of beta
-    arg_exp = clamp(p.zeta * p.delta * I, -100.0, 100.0)
+    arg_exp = p.zeta * p.delta * I
     beta = p.beta0 * exp(-arg_exp)
 
     # Define the SEIRD equations
@@ -158,7 +158,7 @@ using .EstimatedGroundTruthParameters: POPULATION, PREVALENCE, R0_REPRODUCTION, 
 # Loop through each combination of parameters for each state and generate synthetic data
 #for location in keys(POPULATION)
 # Just generating a single trajectory
-for location in ["MD"]
+for location in ["MA"]
     population = POPULATION[location]
     prevalence = PREVALENCE[location]
     delta = DELTA[location]

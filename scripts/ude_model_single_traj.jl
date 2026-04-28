@@ -43,7 +43,7 @@ n_sims = 100
 LOAD DATA
 =========================================================#
 
-dataset = load(datadir("synthesised_trajectories_old", "synthetic_pop=6892503_E0=0.0_R0=0.0_D0=0.0_sig=0.333_gam=0.1_zet=0.02_prev=1.04e-5_del=0.000131_R0r=5.28.jld2"))
+dataset = load(datadir("synthesised_trajectories_single", "synthesised_MA.jld2"))
 
 # Extract infectious individuals and days from the dataset
 data = dataset["infectious"]
@@ -58,11 +58,6 @@ const sigma = 1/3
 # Infectious period of 10 days represented by recovery rate gamma
 const gamma = 1/10
 
-
-
-# Massachusetts population size - taken from JHU CSSE
-population = 6892503
-
 # Define initial state same as the generated data
 # Retrieve fixed parameters
 const E0 = 1.0
@@ -73,7 +68,7 @@ const D0 = 0.0
 include("estimated_ground_truth_parameters.jl")
 using .EstimatedGroundTruthParameters: POPULATION, PREVALENCE, R0_REPRODUCTION, DELTA, ZETA
 
-location = "MD"
+location = "MA"
 population = POPULATION[location]
 prevalence = PREVALENCE[location]
 delta = DELTA[location]
@@ -98,7 +93,7 @@ tspan = [1, train_length]
 # Create neural network to estimate the transmission rate:
 # We have two hidden layers with hidden_dims neurons and gelu activation function
 # We are taking normalised t and I(t) as inputs and outputting beta(t)
-beta_network = Lux.Chain(Lux.Dense(2=>hidden_dims, gelu), Lux.Dense(hidden_dims=>hidden_dims, gelu),
+beta_network = Lux.Chain(Lux.Dense(1=>hidden_dims, gelu), Lux.Dense(hidden_dims=>hidden_dims, gelu),
                          Lux.Dense(hidden_dims=>1, softplus))
 
 # Initialise parameters to build the structure for the UDE
@@ -131,7 +126,7 @@ function seird_nn!(du, u, p, t)
     end
 
     # Define normalised inputs for NN
-    nn_input = [I / population, t / train_length]
+    nn_input = [I / population]
 
     # Evaluate neural network and extract scalar
     beta = beta_network(nn_input, p.nn_params, st_nn)[1][1]

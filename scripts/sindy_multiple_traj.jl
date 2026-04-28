@@ -111,12 +111,13 @@ for filename in readdir(root)
 
 
         # Create matrix with 5 rows and length(pred) column
+        # Normalise I and time
         x_hat_k = vcat(
             fill(beta0,1,T), 
             fill(zeta,1,T), 
             fill(delta,1,T), 
-            reshape(I_k, 1, :),
-            reshape(days_k, 1, :)
+            reshape(I_k./population, 1, :),
+            reshape(days_k./T, 1, :)
         )
 
         # Store a block for each trajectory
@@ -152,7 +153,8 @@ exp_terms = [
     exp(-u[1]*u[2]*u[4]),            
     exp(-u[1]*u[3]*u[4]),            
     exp(-u[2]*u[3]*u[4]),            
-    exp(-u[1]*u[2]*u[3]*u[4])        
+    exp(-u[1]*u[2]*u[3]*u[4]),           
+    u[1]*exp(-u[2]*u[3]*u[4]),                  
 ]
 
 h = Num[vcat(poly_terms, exp_terms)...]
