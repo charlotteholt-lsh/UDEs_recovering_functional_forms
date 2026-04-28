@@ -10,6 +10,7 @@ The disease dynamics are modelled by the following system of ordinary differenti
 
 $$
 \begin{aligned}
+
 \frac{dS}{dt} &= -\beta(t)\frac{S(t)I(t)}{N}, \\ 
 \frac{dE}{dt} &= \beta(t)\frac{S(t)I(t)}{N} - \sigma E(t), \\
 \frac{dI}{dt}&= \sigma E(t) - (\gamma+\delta)I(t), \\
@@ -17,10 +18,9 @@ $$
 \frac{dD}{dt}&= \delta I(t)
 \end{aligned}
 $$
-
 where $\sigma$ is the incubation rate, $\gamma$ is the recovery rate, and $\delta$ is the disease-induced mortality rate. We incorporate endogenous behaviour by introducing a feedback loop represented by a time-varying transmission rate $\beta(t)$ that varies depending on disease prevalence at time $t$. 
 
-*Should I actually be writing $\beta(I(t))$ instead of $\beta(t)$?*
+*Should I actually be writing $\beta(I)$ instead of $\beta(t)$?*
 
 ### Time-varying transmission rate
 
@@ -29,24 +29,19 @@ We will model the transmission rate as a monotonically decreasing function of th
 The true generating functional form is given by:
 
 $$ \beta(t) = \beta_0  e ^{-\zeta \delta I(t)} \tag{1}$$
-
-where $\beta_0$ is the baseline transmission rate in the absence of behavioural response, $\zeta$ is the strength of the behavioural response, where a higher $\zeta$ corresponds to a bigger difference in the population's behaviour when compared with the baseline, and $\delta$ and $I(t)$ are as above. To ensure numerical stability, the argument of the exponential is clipped to the range $[-50, 50]$.
-
-*Could this be affecting my symbolic regression? Should I expand the limiting interval? Or normalise the input to the transmission rate to be consistent with the symbolic regression? Normalising shouldn't affect the regression because it would just have an extra constant.*
+where $\beta_0$ is the baseline transmission rate in the absence of behavioural response, $\zeta$ is the strength of the behavioural response, where a higher $\zeta$ corresponds to a bigger difference in the population's behaviour when compared with the baseline, and $\delta$ and $I(t)$ are as above.
 
 The baseline transmission rate is given by:
-
 $$
 \beta_0 = R_0(\gamma + \delta) \tag{2}
 $$
-
 where $R_0$ is the basic reproduction number. Note that when the strength of the behavioural response, $\zeta = 0$, we have that $\beta(t) = \beta_0$ for all $t$. This is analagous to a model that does not incorporate endogenous behaviour.
 
 ### Parameters and initial conditions
 
 To synthesise the epidemic trajectories we used parameters calibrated to COVID-19 data taken from the COVID-19 Data Repository by the Centre for Systems Science and Engineering (CSSE) at John Hopkins University (JHU) [7] for each of the 51 US states. 
 
-We held the incubation rate $\sigma$ and the recovery rate $\gamma$ fixed across all trajectories, and their values $\sigma = 1/3$ day $^{-1}$ [1,2] and $\gamma = 1/10$ day $^{-1}$ [3,4] were chosen based on early SARS-CoV-2 data. To model each synthetic trajectory from disease inception, we also kept $E(0)=1$ and $R(0)=D(0)=0$ (initial exposed, recovered, and deceased population sizes) constant across all trajectories. 
+We held the incubation rate $\sigma$ and the recovery rate $\gamma$ fixed across all trajectories, and their values $\sigma = 1/3$ day$^{-1}$ [1,2] and $\gamma = 1/10$ day$^{-1}$ [3,4] were chosen based on early SARS-CoV-2 data. To model each synthetic trajectory from disease inception, we also kept $E(0)=1$ and $R(0)=D(0)=0$ (initial exposed, recovered, and deceased population sizes) constant across all trajectories. 
 
 To generate realistic epidemic trajectories, we obtained the initial population size $N(0)$ for each state from the JHU CSSE data [7], and inferred the context-specific parameters using the methodology and code outlined in [5]. As a brief summary, we undertook Approximate Bayesian Computation with Sequential Monte Carlo (ABC-SMC) with weakly informative priors and took the weighted median of the respective posterior marginal distributions. The code used for the parameter inference is available at [6] and further details of the methodology used can be found in the Supplementary material of [5]. 
 
@@ -69,14 +64,11 @@ For each state, we generated 365 days of data of an epidemic trajectory, by solv
 
 We did not compute a 7-day moving average or add observational noise for Phase 1.
 
-*In the data generation, I use a different ODE solver than in the UDE framework, what is the effect of this and should I change?*
-
 ## Universal differential equation (UDE) framework
 
 ### Model formulation
 
 In the UDE framework, we attempt to learn the "unknown" time-varying transmission rate by replacing $\beta(t)$ with a neural network approximator $f_{NN}^\theta$, where $\theta$ denotes the trainable parameters of the neural network, namely the weights and biases. We can rewrite the ODE system as follows:
-
 $$
 \begin{aligned}
 \frac{dS}{dt} &= -f_{NN}^\theta(x(t))\frac{S(t)I(t)}{N}, \\ 
@@ -86,7 +78,6 @@ $$
 \frac{dD}{dt}&= \delta I(t)
 \end{aligned}
 $$
-
 where $x(t)$ denotes the input parameters for our neural network at time $t$.
 
 *We are currently exploring two variants of the UDE framework to investigate the effect on the neural network's ability to approximate the transmission rate, and the performance of symbolic regression*
@@ -95,143 +86,125 @@ where $x(t)$ denotes the input parameters for our neural network at time $t$.
 
 The neural network $f_{NN}^\theta$ is a feed-forward neural network implemented in `Lux.jl`. It has 2 neural network layers, with 5 neurons per layer and a Gaussian Error Linear Unit (GELU) activation function. The neural network has a linear output layer with 1 neuron and a softplus final activation function. The final activation function ensures that $\beta(t)\geq 0$ for all $t$, so the learned transmission rate remains epidemiologically plausible.
 
+**What is prior knowledge, could enforce constraints**
+
 We explore two variants of the UDE framework with different training processes and neural network inputs $x(t)$.
 
 ***Single-trajectory model***
-
-This model is trained on a singular simulated trajectory (for Massachusetts), and takes the normalised infectious population and normalised time as inputs:
-
+This model is trained on a singular simulated trajectory (for Massachusetts), and takes the normalised infectious population:
 $$
-x(t) = [I(t)/N(t),t/T]
+\mathbf{X}(t) = [I(t)/N(t)]
 $$
-
-where $T=365$ the length of the simulated trajectory.
 
 ***Multiple-trajectory model***
-
 This model is trained on a multiple simulated trajectories (the simulated epidemics for each US state). The neural network takes 5 parameters as inputs; the parameters that vary across the simulated trajectories $\beta_0, \zeta, \delta$, in addition to the normalised infectious population and normalised time:
 
 $$
-x(t) = [\beta_0, \zeta, \delta, I(t)/N(t),t/T]
+\mathbf{X}(t) = [\beta_0, \zeta, \delta, I(t)/N(t),t/T]
 $$
 
 where $T=365$ the length of the simulated trajectory.
 
 Using the trajectory-specific parameters as inputs allows the neural network weights and biases $\theta$ to generalise across all 51 trajectories by conditioning the output on the varying input parameters.
 
-*How do I normalise $\beta_0, \zeta, \delta$? Potentially use z-score normalisation across 51 trajectories? Or min/max across trajectories.*
+**Need to implement: instead of inputting constants: scale based on the prior**
 
 ### ODE solver
 
 The UDE system is integrated using the `Rosenbrock23()` solver from `DifferentialEquations.jl` and the model's prediction for each state is saved at daily intervals for $t \in [1, 365]$. We use `DiffEqFlux.jl` to undertake gradient-based optimisation, to update the trainable neural network parameters. 
 
-*Should this be the same as the solver used to synthesise the data?*
-
 ## Loss function and optimisation
 
 ### Loss function
 
-We train the neural network parameters $\theta$ by minimising a Poisson negative log-likelihood (NLL) between the predicted infectious count $\hat{I}(t)$ and the observed (simulated) infectious count $I(t)$. The loss function is given by:
-
+We train the neural network parameters $\theta$ by minimising the mean squared error (MSE) between the predicted infectious count $\hat{I}(t)$ and the observed (simulated) infectious count $I(t)$. The loss function is given by:
 $$
-L(\theta)= \sum_{t\in[1,T]}(\hat{I}(t)-I(t)\cdot\log(\hat{I}(t)+\epsilon))
+\mathrm{MSE} = \frac{1}{T} \sum_{i=1}^T ( \hat{I}_i - I_i )^2
 $$
-
-where $\epsilon = 1e^{-6}$ to ensure numerical stability.
-
-This corresponds to the log-likelihood of a Poisson observation model with mean $\hat{I}(t)$, up to a constant.
-
 In Phase 1, we exclude regularisation as we are attempting to create ideal conditions for the neural network to accurately approximate the transmission rate.
-
-*This needs changing - as Nina pointed out, we are not generating data with Poisson observation noise so why are we using this as a loss function here? Change to MSE and see what happens.*
 
 ### Multiple-trajectory training objective
 
-To obtain a combined loss across all of our synthesised trajectories, we evaluate the Poisson NLL for each individual trajectory and then sum the total loss. So for our $M=51$ states, the combined loss function to minimise is:
-
+To obtain a combined loss across all of our synthesised trajectories, we evaluate the MSE for each individual trajectory and then sum the total loss. So for our $M=51$ states, the combined loss function to minimise is:
 $$
 L_{\text{combined}}(\theta)= \sum_{i=1}^ML_{i}(\theta)
 $$
-
-where $L_i(\theta)$ is the Poisson NLL for trajectory $i$.
+where $L_i(\theta)$ is the MSE for trajectory $i$.
 
 We accumulate the gradients of each individual loss with respect to $\theta$ across all trajectories, and use this combined gradient to update our neural network parameters:
-
 $$
 \Delta_{\theta}L_{\text{combined}}=\sum_{i=1}^M \Delta L_{i}(\theta)
 $$
-
 ### Optimiser
 
 We use the Adam optimiser from `Optimisers.jl` with a learning rate of $\eta = 1e^{-3}$, running the training process for a maximum of 2,500 iterations. We retain the parameters that result in the lowest loss across all iterations. The model parameters were randomly initialised, and training is stopped if there are 5 consecutive infinite losses as this indicates an unstable parameter region.
 
 We compute the gradient using reverse-mode automatic differentiation via `Zygote.jl`, using the `pullback` function.  The gradient with of the loss with respect to the neural network parameters is used to update the neural network weights.
 
-*We removed the check that parameter sets that gave initial errors beyond a specified threshold should be reparametetrised because with the NLL I wasn't sure what this threshold should be and it didn't improve performance when compared.*
-
-*Want to investigate using BFGS as well*
-
 ## Symbolic regression
 
 ### Problem formulation
 
+**This section is unclear and needs amending!**
+
 After training the neural network to approximate the transmission rate $\beta(t)$, we will attempt to recover the true functional form that we used to generate the synthetic data used for training, by using symbolic regression, namely, the SINDy method [8].
 
-In traditional uses of the SINDy algorithm the derivative data is required. However, in our case we only have the time series data, therefore the SINDy algorithm is modified so that it only applies to the unknown function in our equation, $\beta(t)$, and we replace the derivative data with the output of our neural network $f_{NN}^\theta(x(t))$ [9].
+In traditional uses of the SINDy algorithm, the data required is the time series data and the measured derivative data [8]. However, in our case we modify the algorithm so that it only applies to the unknown function in our equation, $\beta(t)$, and we replace the derivative data with the output of our neural network $f_{NN}^\theta(x(t))$. Since we have an approximation of the function, we are able to generate many input-output pairs [9].
 
-We take a set of input-output pairs; the infection prevalence trajectory and the neural network's approximation of the transmission rate, and evaluate both at each time point:
-
+We take a set of input-output pairs; evaluating both the neural network inputs and the neural network's approximation of the transmission rate at each time point:
 $$
-\{I(t),f_{NN}^\theta(x(t))\}_{t=1}^T
+\{\mathbf{X},f_{NN}^\theta(\mathbf{X})\}_{t=1}^T
 $$
-
-We then use `DataDrivenDiffEq.jl` and `DataDrivenSparse.jl` to frame this as a sparse regression problem [8, 9]:
-
+We then use `DataDrivenDiffEq.jl` and `DataDrivenSparse.jl` to frame this as a sparse regression problem [8,9] :
 $$
-f_{NN}^\theta(X)=\Theta(X) \Xi(X)
+f_{NN}^\theta(\mathbf{X})=\Theta(\mathbf{X}) \Xi
 $$
-
-where $\Theta(X)$ is the library of candidate functions that could comprise the functional form for the transmission rate, and $\Xi(X) = [\xi_{1}, \xi_{2}, \dots, \xi_{n}]$ is the sparse vector of coefficients determining which of the candidate functions are active in the functional form. We want to find the fewest terms in the library that can describe the data, hence why we call it sparse.
+where $\Theta(X)$ is the library of candidate functions that could comprise the functional form for the transmission rate, and $\Xi = [\xi_{1}, \xi_{2}, \dots, \xi_{n}]$ is the sparse vector of coefficients determining which of the candidate functions are active in the functional form. We want to find the fewest terms in the library that can describe the data, hence why we call it sparse.
 
 Once we have determined the sparse coefficient vector $\Xi(X)$, we can construct each element of the functional form:
 
 $$
-\hat{\beta}_{{SR}}(t)_k \approx f_{NN_{k}}^\theta(x(t))\approx\Theta(x(t)^T) \xi_k
+\hat{\beta}_{{SR}}(t)_k \approx f_{NN_{k}}^\theta(\mathbf{X}(t))\approx\Theta(\mathbf{X}(t)^T) \xi_k
 $$
-
 and so we have that the SINDy approximation of the transmission rate can be represented by:
 
 $$
-\hat{\beta}_{{SR}}(t) \approx f_{NN}^\theta(x(t))\approx\Xi^T(\Theta(x(t)^T))^T
+\hat{\beta}_{{SR}}(t) \approx f_{NN}^\theta(\mathbf{X}(t))\approx\Xi^T(\Theta(\mathbf{X}(t)^T))^T
 $$
-
-
-1. *Should the input set actually be represented by all the inputs e.g. t and I(t) and how should it be done for the multiple trajectories - I think we need all of the inputs for multiple trajectories*
-2. *Should I be representing beta as a function of $\beta(I)$ or $\beta(\beta_0, \zeta, \delta, I(t))$*
+*~={red}
+1. *Should I be representing beta as a function of $\beta(I)$ or $\beta(\beta_0, \zeta, \delta, I(t))$*=~
 
 ### Candidate function library
 
 We use different basis libraries for each variant of the framework:
 
 ***Single-trajectory:***
-
-Input to the basis is $u = I/N$, scaled to prevent overflow in the exponential term of the basis. The sparse coefficient should be able to counteract this by multiplying by coefficient $N$.
-
 The library consists of:
-- Polynomial terms in $u$ up to degree 3: $\{1, u, u^2, u^3\}$
-- Exponential term: $\exp(-u)$
+- Polynomial terms in $u = I$ up to degree 3: $\{u, u^2, u^3\}$
+- Exponential terms:
+	1. $\exp(−ζδN · u_\text{scaled})$ 
+	2. $\exp(−ζ · u_\text{scaled})$ 
+	3. $\exp(−δ ·u_\text{scaled})$ 
+	4. $\exp(−ζδ ·u_\text{scaled})$ 
+	5. $\exp(−ζN ·u_\text{scaled})$ 
+	6. $\exp(−δN ·u_\text{scaled})$
+
+We use is $u_{\text{scaled}} = I/N$ in the exponential argument to prevent overflow in the basis. The sparse coefficient should be able to counteract this by multiplying by coefficient $N$. We assume $\zeta$ and $\delta$ to be known, due to the limitation of SINDy that it can only produce a linear combination of nonlinear terms so is unable to change the coefficient within the exponential argument.
 
 ***Multiple-trajectory:***
-
-The input vector to the basis is $u = (\beta_0, \zeta, \delta, I/N)$ and the library consists of:
-- Multivariate polynomial terms in $u$ up to degree 3
-- Exponential terms: $\exp(-u_i)$ for each $u_i \in u$
-
-*Multiple-trajectory symbolic regression is incomplete, e.g. need all exponential terms with the elements of $u$ multiplied together etc. Working on single-trajectory symbolic regression first.*
-
+The input vector to the basis is $u = (\beta_0, \zeta, \delta, I/N)$
+The library consists of:
+1. $\exp(-\beta_0 I/N)$  
+2. $\exp(-\zeta I/N)$  
+3. $\exp(-\delta I/N)$  
+4. $\exp(-\beta_0 \zeta I/N)$  
+5. $\exp(-\beta_0 \delta I/N)$  
+6. $\exp(-\zeta \delta I/N)$  
+7. $\exp(-\beta_0 \zeta \delta I/N)$  
+8. $\beta_0 \exp(-\zeta \delta I/N)$
 ### Sparse regression algorithm
 
-We identify the sparse coefficient vector using the Sequentially Thresholded Least Squares (STLSQ) algorithm, with a shrinking cut-off of $\lambda=10^{-1}$. STLSQ iteratively applies (until convergence) a least-squares algorithm, removing any coefficients $[\xi_{1}, \xi_{2}, \dots, \xi_{n}]$ that are less than the shrinking cut off $\lambda$.
+We identify the sparse coefficient vector using the Sequentially Thresholded Least Squares (STLSQ) algorithm, with a shrinking cut-off of $\lambda=10^{-2}$. STLSQ iteratively applies (until convergence) a least-squares algorithm, removing any coefficients $[\xi_{1}, \xi_{2}, \dots, \xi_{n}]$ that are less than the shrinking cut off $\lambda$.
 
 The regression is configured with:
 - Maximum iterations: 10,000
@@ -239,12 +212,11 @@ The regression is configured with:
 - Model selection criterion: Bayesian Information Criterion (BIC) which penalises complexity and favours parsimonious models
 - Coefficient precision: rounded to 1 significant digit for interpretability
 
-*Try genetic algorithm "symbolic regression using a genetic algorithm offers a better approach when there are complex constraints on the functional form of the system" and STLSQ better on systems that require large amounts of data points i.e. not our case [10]. Evolutionary genetic algorithm used in [[philippsCurrentStateOpen2025]]*
+*Try genetic algorithm "symbolic regression using a genetic algorithm offers a better approach when there are complex constraints on the functional form of the system" and STLSQ better on systems that require large amounts of data points i.e. not our case=~ [10].~={red} Evolutionary genetic algorithm used in=~ [[philippsCurrentStateOpen2025]]*
 
-*Settings above are taken from [[Automatically discover missing physics by embedding ML into differential equations - SciML tutorial]] and are not thought through by me.*
+*Settings above are taken from=~ [[Automatically discover missing physics by embedding ML into differential equations - SciML tutorial]] ~={red}and are not thought through by me.*
 
-*In [[Automatically discover missing physics by embedding ML into differential equations - SciML tutorial]], and [10] they include: Data split: 90% train / 10% validation, with random shuffled batches of size 30 which makes the result of the regression change every time, unsure why but don't think I need here, INVESTIGATE*
-
+*In =~[[Automatically discover missing physics by embedding ML into differential equations - SciML tutorial]], and [10] ~={red}they include: Data split: 90% train / 10% validation, with random shuffled batches of size 30 which makes the result of the regression change every time, unsure why but don't think I need here, INVESTIGATE*
 
 ### Validation
 
@@ -252,6 +224,7 @@ We substitute the SINDy representation of the transmission rate into the system 
 
 $$
 \begin{aligned}
+
 \frac{dS}{dt} &= -\hat{\beta}_{{SR}}\frac{S(t)I(t)}{N}, \\ 
 \frac{dE}{dt} &= \hat{\beta}_{{SR}}\frac{S(t)I(t)}{N} - \sigma E(t), \\
 \frac{dI}{dt}&= \sigma E(t) - (\gamma+\delta)I(t), \\
@@ -259,7 +232,6 @@ $$
 \frac{dD}{dt}&= \delta I(t)
 \end{aligned}
 $$
-
 We compare the epidemic trajectories predicted by the true generating transmission rate, the neural network approximation and the symbolic regression representation. Analagously, we compare the time-varying transmission rate trajectories throughout the epidemic for each scenario.
 
 We use the mean-squared error to evaluate performance:
@@ -267,7 +239,6 @@ We use the mean-squared error to evaluate performance:
 $$
 MSE = \frac{1}{T}\sum_{t=1}^T(\hat{I}(t)-I(t))^2
 $$
-
 # References
 
 [1] S. A. Lauer, K. H. Grantz, Q. Bi, F. K. Jones, Q. Zheng, H. R. Meredith, A. S. Azman, N. G. Reich, and J. Lessler, “The incubation period of coronavirus disease 2019 (COVID-19) from publicly reported confirmed cases: estimation and application,” Annals of internal medicine, vol. 172, no. 9, pp. 577–582, 2020.
