@@ -151,7 +151,7 @@ nn_problem = DataDrivenDiffEq.DirectDataDrivenProblem(x_hat, y_hat)
 
 # Use STLSQ to solve the sparse regression problem
 # Define the shrinking cut off
-lambda = 1e-4
+lambda = 1e-2
 opt = DataDrivenSparse.STLSQ(lambda)
 
 # Solve the sparse regression problem
