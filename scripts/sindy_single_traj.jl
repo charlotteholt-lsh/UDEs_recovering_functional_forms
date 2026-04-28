@@ -33,7 +33,7 @@ sim_name = "270426_post_nina_comments"
 # Define the NN architecture
 hidden_dims = 5
 
-beta_network = Lux.Chain(Lux.Dense(2=>hidden_dims, gelu), Lux.Dense(hidden_dims=>hidden_dims, gelu),
+beta_network = Lux.Chain(Lux.Dense(1=>hidden_dims, gelu), Lux.Dense(hidden_dims=>hidden_dims, gelu),
                          Lux.Dense(hidden_dims=>1, softplus))
 
 # Initialise parameters
@@ -61,12 +61,12 @@ CREATE BASIS
 
 # Generate library of candidate functions
 # We have one state variable u[1](t)
-@variables t u(t)[1:1]
+@variables u[1:1]
 # Normalise the number of infectious individuals so that the exponential term doesn't overflow
 u_scaled = u[1] / population
 k = zeta * delta * population
 exp_terms = [   
-    #exp(-zeta*u_scaled),           
+    exp(-zeta*u_scaled),           
     exp(-delta*u_scaled),                            
     exp(-zeta*delta*u_scaled),            
     exp(-zeta*population*u_scaled),            
@@ -76,10 +76,10 @@ exp_terms = [
 #poly_terms = DataDrivenDiffEq.polynomial_basis([u_scaled], 3)
 
 poly_terms = [
-    1,    
+    #1,    
     u[1],
     u[1]^2,
-    #u[1]^3
+    u[1]^3
 ]
 
 h = Num[vcat([exp(-k*u_scaled)],  poly_terms)...]
@@ -136,7 +136,7 @@ days = best_results["days"]
 const train_length = 365
 
 # Extract NN approximation (normalised)
-nn_input = vcat(x_hat ./ population, reshape(days ./ train_length, 1, :))
+nn_input = vcat(x_hat ./ population)
 
 
 # Evaluate neural network and extract approximation
@@ -178,9 +178,6 @@ const train_length = 365
 const sigma = 1/3 
 # Infectious period of 10 days represented by recovery rate gamma
 const gamma = 1/10
-
-# Massachusetts population size - taken from JHU CSSE
-population = 6892503
 
 # Define initial state same as the generated data
 # Retrieve fixed parameters
@@ -286,7 +283,7 @@ I_true = pred_true[3, :]
 beta_true = true_beta.(I_true)
 
 # Beta learned by the trained NN on the same true-system I(t)
-nn_input_true = vcat(reshape(I_true, 1, :)./population, reshape(pred_true.t, 1, :)./train_length)
+nn_input_true = vcat(reshape(I_true, 1, :)./population)
 beta_nn_on_true = vec(beta_network(nn_input_true, p_trained.nn_params, st_nn)[1])
 
 # Recovered beta evaluated along the same I(t) for comparison
