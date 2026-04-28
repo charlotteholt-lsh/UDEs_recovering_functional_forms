@@ -55,6 +55,45 @@ beta0 = R0_reproduction * (gamma + delta)
 I0 = max(1.0, prevalence * population)
 S0 = population - E0 - I0 - R0_recovered - D0
 
+
+#=============================================================
+DEFINE INITAL STATE AND PARAMETERS
+=============================================================#
+
+# Define training length
+const train_length = 365
+
+# Latent period of 3 days represented by incubation rate sigma
+const sigma = 1/3 
+# Infectious period of 10 days represented by recovery rate gamma
+const gamma = 1/10
+
+# Define initial state same as the generated data
+# Retrieve fixed parameters
+const E0 = 1.0
+const R0_recovered = 0.0
+const D0 = 0.0
+
+# Extract from estimated ground truths
+include("estimated_ground_truth_parameters.jl")
+using .EstimatedGroundTruthParameters: POPULATION, PREVALENCE, R0_REPRODUCTION, DELTA, ZETA
+
+location = "MA"
+population = POPULATION[location]
+prevalence = PREVALENCE[location]
+delta = DELTA[location]
+R0_reproduction = R0_REPRODUCTION[location]
+zeta = ZETA[location]
+
+# Derive other parameters
+beta0 = R0_reproduction * (gamma + delta)
+I0 = max(1.0, prevalence * population)
+S0 = population - E0 - I0 - R0_recovered - D0
+
+# Define initial state
+init_state = [S0, E0, I0, R0_recovered, D0]
+
+
 #=============================================================
 CREATE BASIS
 =============================================================#
@@ -132,9 +171,6 @@ best_results = load(datadir("sims", "ude_single", sim_name, best_fname, "results
 p_trained = best_results["p"]
 days = best_results["days"]
 
-# Define training length for normalization (must match ude_model_single_traj.jl)
-const train_length = 365
-
 # Extract NN approximation (normalised)
 nn_input = x_hat ./ population
 
@@ -167,42 +203,6 @@ println(nn_res)
 println(nn_eqs)
 println(nn_params)
 
-#=============================================================
-DEFINE INITAL STATE AND PARAMETERS
-=============================================================#
-
-# Define training length
-const train_length = 365
-
-# Latent period of 3 days represented by incubation rate sigma
-const sigma = 1/3 
-# Infectious period of 10 days represented by recovery rate gamma
-const gamma = 1/10
-
-# Define initial state same as the generated data
-# Retrieve fixed parameters
-const E0 = 1.0
-const R0_recovered = 0.0
-const D0 = 0.0
-
-# Extract from estimated ground truths
-include("estimated_ground_truth_parameters.jl")
-using .EstimatedGroundTruthParameters: POPULATION, PREVALENCE, R0_REPRODUCTION, DELTA, ZETA
-
-location = "MA"
-population = POPULATION[location]
-prevalence = PREVALENCE[location]
-delta = DELTA[location]
-R0_reproduction = R0_REPRODUCTION[location]
-zeta = ZETA[location]
-
-# Derive other parameters
-beta0 = R0_reproduction * (gamma + delta)
-I0 = max(1.0, prevalence * population)
-S0 = population - E0 - I0 - R0_recovered - D0
-
-# Define initial state
-init_state = [S0, E0, I0, R0_recovered, D0]
 
 #=============================================================
 DEFINE ODE SYSTEM USING THE BETA THAT HAS BEEN RECOVERED FROM THE NN BY SYMBOLIC REGRESSION

@@ -12,9 +12,12 @@ using DrWatson
 using JLD2
 # Import symbolic regression package and MLJ interface
 using SymbolicRegression
+using Lux
 using MLJ 
 using Random; rng = Random.default_rng()
-
+# Call the loss functions
+include(joinpath(@__DIR__, "functions.jl"))
+using .Functions
 
 #========================================================
 SET UP NEURAL NETWORK
@@ -30,11 +33,22 @@ beta_network = Lux.Chain(Lux.Dense(1=>hidden_dims, gelu), Lux.Dense(hidden_dims=
 # Initialise parameters
 p_nn_temp, st_nn = Lux.setup(rng, beta_network)
 
+
 #=============================================================
 RETRIEVE PREDICTIONS AND PARAMETERS FROM THE BEST SIMULATION
 =============================================================#
 
 sim_name = "270426_post_nina_comments"
+
+
+# Extract from estimated ground truths
+include("estimated_ground_truth_parameters.jl")
+using .EstimatedGroundTruthParameters: POPULATION
+
+location = "MA"
+population = POPULATION[location]
+
+
 # Retrieve NN parameters that resulted in the lowest error on the training data
 
 # Load the observed data
@@ -87,9 +101,10 @@ UNDERTAKE SYMBOLIC REGRESSION IN MLJ
 =============================================================#
 
 model = SRRegressor(
-    niterations=50,
-    binary_operators=[+, -, *],
+    niterations=100,
+    binary_operators=[+, -, *, /],
     unary_operators=[exp],
+    maxsize = 20
 )
 
 # Create and train model on this data
