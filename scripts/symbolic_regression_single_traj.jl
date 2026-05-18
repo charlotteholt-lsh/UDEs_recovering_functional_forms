@@ -54,6 +54,11 @@ delta = DELTA[location]
 R0_reproduction = R0_REPRODUCTION[location]
 zeta = ZETA[location]
 
+# Derive other parameters (needed for beta0)
+const sigma = 1/3
+const gamma = 1/10
+beta0 = R0_reproduction * (gamma + delta)
+
 
 # Retrieve NN parameters that resulted in the lowest error on the training data
 
@@ -123,8 +128,8 @@ report(mach)
 TESTING
 =============================================================#
 
-# Symbolic Regression result
-SR_beta = exp.(obs ./ population .* -5.3842466426660724) .* 0.5319183166047315
+# Symbolic Regression result - use the fitted model predictions
+SR_beta = MLJ.predict(mach, x_hat)
 
 # True beta result
 true_beta_SR = beta0 .* exp.(-zeta .* delta .*obs)
@@ -161,4 +166,6 @@ annotate!(p_comparison, x_ann, y_ann - dy, text("MSE (SR vs NN) = $(round(mse_SR
 
 
 display(p_comparison)
+# Ensure figures directory exists before saving
+mkpath(joinpath(@__DIR__, "figures"))
 savefig(p_comparison, joinpath(@__DIR__, "figures", "$(sim_name)_SR_beta_vs_true.png"))

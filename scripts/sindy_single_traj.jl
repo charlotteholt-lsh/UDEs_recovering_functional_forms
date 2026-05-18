@@ -263,7 +263,7 @@ xlabel!(p1, "Day")
 ylabel!(p1, "Daily deaths")
 title!(p1, "SINDY approximation of daily deaths")
 mse_sindy = Functions.loss_mse(pred_sindy[3, :], obs)
-mse_nn = Functions.loss_mse(x_hat, obs)
+mse_nn = Functions.loss_mse(vec(x_hat), obs)
 x_ann = days[end]
 y_top = maximum(obs)
 annotate!(p1, x_ann, y_top * 0.70, text("MSE SINDY: $(round(mse_sindy, digits=4))", 9, :right))
@@ -293,11 +293,11 @@ savefig(pl, joinpath(@__DIR__, "figures", "$(sim_name)_sindy_trajectory.png"))
 display(pl)
 
 # Evaluate MSE using the median
-mse = Functions.loss_mse(vec(y_hat), beta_true)
-println(Functions.loss_mse(vec(y_hat), beta_true))
+mse = Functions.loss_mse(beta_nn_on_true, beta_true)
+println(Functions.loss_mse(beta_nn_on_true, beta_true))
 
 p_beta = plot(days, beta_true, label = "True β", lw = 2)
-plot!(p_beta, days, vec(y_hat), label = "Learned β", lw = 2, ls = :dash)
+plot!(p_beta, days, beta_nn_on_true, label = "Learned β", lw = 2, ls = :dash)
 
 
 
