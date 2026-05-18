@@ -54,6 +54,10 @@ delta = DELTA[location]
 R0_reproduction = R0_REPRODUCTION[location]
 zeta = ZETA[location]
 
+# Derive other parameters
+# Infectious period of 10 days represented by recovery rate gamma
+const gamma = 1/10
+beta0 = R0_reproduction * (gamma + delta)
 
 # Retrieve NN parameters that resulted in the lowest error on the training data
 
@@ -161,4 +165,7 @@ annotate!(p_comparison, x_ann, y_ann - dy, text("MSE (SR vs NN) = $(round(mse_SR
 
 
 display(p_comparison)
-savefig(p_comparison, joinpath(@__DIR__, "figures", "$(sim_name)_SR_beta_vs_true.png"))
+figures_dir = joinpath(@__DIR__, "figures")
+mkpath(figures_dir)
+savefig(p_comparison, joinpath(figures_dir, "$(sim_name)_SR_beta_vs_true.png"))
+
