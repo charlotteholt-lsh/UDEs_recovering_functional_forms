@@ -39,22 +39,6 @@ beta_network = Lux.Chain(Lux.Dense(1=>hidden_dims, gelu), Lux.Dense(hidden_dims=
 # Initialise parameters
 p_nn_temp, st_nn = Lux.setup(rng, beta_network)
 
-# Extract from estimated ground truths
-include("estimated_ground_truth_parameters.jl")
-using .EstimatedGroundTruthParameters: POPULATION, PREVALENCE, R0_REPRODUCTION, DELTA, ZETA
-
-location = "MA"
-population = POPULATION[location]
-prevalence = PREVALENCE[location]
-delta = DELTA[location]
-R0_reproduction = R0_REPRODUCTION[location]
-zeta = ZETA[location]
-
-# Derive other parameters
-beta0 = R0_reproduction * (gamma + delta)
-I0 = max(1.0, prevalence * population)
-S0 = population - E0 - I0 - R0_recovered - D0
-
 
 #=============================================================
 DEFINE INITAL STATE AND PARAMETERS
@@ -132,7 +116,7 @@ RETRIEVE PREDICTIONS AND PARAMETERS FROM THE BEST SIMULATION
 =============================================================#
 
 # Load the observed data
-dataset = load(datadir("synthesised_trajectories_single", "synthesised_MA.jld2"))
+dataset = JLD2.load(datadir("synthesised_trajectories_single", "synthesised_MA.jld2"))
    
 # Just use infectious trajectory
 obs = dataset["infectious"]
@@ -149,7 +133,7 @@ for filename in readdir(root)
     # Only include directories
     if isdir(joinpath(root, filename))
         # Extract results, predictions and losses
-        SR_results = load(datadir("sims", "ude_single", sim_name, filename, "results.jld2"))
+        SR_results = JLD2.load(datadir("sims", "ude_single", sim_name, filename, "results.jld2"))
         pred = SR_results["prediction"]
         # Extract the predicted infectious trajectory for the training data
         i_traj = pred[3, 1:length(obs)]
@@ -167,7 +151,7 @@ best_fname = results_list[best_idx].fname
 x_hat = reshape(results_list[best_idx].i_traj, 1, :)
 
 # Extract the NN parameters from the best simulation
-best_results = load(datadir("sims", "ude_single", sim_name, best_fname, "results.jld2"))
+best_results = JLD2.load(datadir("sims", "ude_single", sim_name, best_fname, "results.jld2"))
 p_trained = best_results["p"]
 days = best_results["days"]
 
@@ -177,7 +161,6 @@ nn_input = x_hat ./ population
 
 # Evaluate neural network and extract approximation
 y_hat = beta_network(nn_input, p_trained.nn_params, st_nn)[1]
-
 
 #=============================================================
 DEFINE AND SOLVE THE SPARSE REGRESSION PROBLEM
@@ -193,7 +176,7 @@ opt = DataDrivenSparse.STLSQ(lambda)
 # Solve the sparse regression problem
 options = DataDrivenDiffEq.DataDrivenCommonOptions(maxiters = 10_000,
     normalize = DataDrivenDiffEq.DataNormalization(DataDrivenDiffEq.ZScoreTransform),
-    selector = DataDrivenDiffEq.bic, digits = 1)
+    selector = DataDrivenDiffEq.bic, digits = 6)
 nn_res = DataDrivenDiffEq.solve(nn_problem, basis, opt; options=options)
 # nn_res = DataDrivenDiffEq.solve(nn_problem, basis, opt, progress=true, normalize=true, denoise=false)
 
@@ -242,35 +225,6 @@ function true_beta(I)
     return beta
 end
 
-# Define dynamics using the known beta function
-function true_dynamics!(du, u, p, t)
-    S, E, I, R, D = u
-    # Define the population size
-    N = S + E + I + R
-    # If population size less than or equal to zero return zero
-    if N <= 0
-        du .= 0.0
-        return
-    end
-    # Evaluate true transmission function
-    beta = true_beta(I)
-    # Define the SEIRD equations
-    du[1] = -beta * S * I / N
-    du[2] = beta * S * I / N - sigma * E
-    du[3] = sigma * E - (gamma + delta) * I
-    du[4] = gamma * I
-    du[5] = delta * I
-end
-
-# Define and solve ODE problem using parameters defined at the start of the script
-true_prob = ODEProblem(true_dynamics!, init_state, (1,train_length))
-pred_true = solve(true_prob, Tsit5(), u0=init_state, tspan=(1,train_length), saveat=1)
-
-#=============================================================
-EXTRACT THE DAILY DEATH PREDICTIONS FOR THE UDE MODEL
-=============================================================#
-
-i_traj_nn = results_list[best_idx].i_traj
 
 #=============================================================
 EVALUATE BETA TRAJECTORIES
@@ -279,16 +233,14 @@ EVALUATE BETA TRAJECTORIES
 # Do all relative to the same 'true' trajectory for comparison
 
 # True beta from the true ODE trajectory (no SINDY dynamics)
-I_true = pred_true[3, :]
-beta_true = true_beta.(I_true)
+beta_true = true_beta.(obs)
 
 # Beta learned by the trained NN on the same true-system I(t)
-nn_input_true = reshape(I_true, 1, :)./population
+nn_input_true = reshape(obs, 1, :)./population
 beta_nn_on_true = vec(beta_network(nn_input_true, p_trained.nn_params, st_nn)[1])
 
 # Recovered beta evaluated along the same I(t) for comparison
-beta_recovered_on_true = [nn_res([I], nn_params, t)[1] for (I, t) in zip(I_true, pred_true.t)]
-
+beta_recovered_on_true = [nn_res([I], nn_params, t)[1] for (I, t) in zip(obs, days)]
 # Do relative to their own trajectories for comparison
 
 # Beta learned by the trained NN on the NN approximation
@@ -305,17 +257,17 @@ PLOT RESULTS
 
 # Plot predicted trajectories (UDE and SINDy model) against the observed data
 p1 = plot(days, obs, label="Observed data", lw=2, legend=:topright)
-plot!(p1, days, i_traj_nn, label="NN trajectory", lw=2, ls=:dot)
+plot!(p1, days, vec(x_hat), label="NN trajectory", lw=2, ls=:dot)
 plot!(p1, pred_sindy.t, pred_sindy[3, :], label="SINDY prediction", lw=2, ls=:dash)
 xlabel!(p1, "Day")
 ylabel!(p1, "Daily deaths")
 title!(p1, "SINDY approximation of daily deaths")
 mse_sindy = Functions.loss_mse(pred_sindy[3, :], obs)
-mse_nn = Functions.loss_mse(i_traj_nn, obs)
+mse_nn = Functions.loss_mse(x_hat, obs)
 x_ann = days[end]
 y_top = maximum(obs)
 annotate!(p1, x_ann, y_top * 0.70, text("MSE SINDY: $(round(mse_sindy, digits=4))", 9, :right))
-annotate!(p1, x_ann, y_top * 0.62, text("MSE NN: $(round(mse_nn, digits=4))", 9, :right))
+annotate!(p1, x_ann, y_top * 0.62, text("MSE NN: $(round(mse_nn, digits=9))", 9, :right))
 
 # Plot the beta trajectories evaluated against their respective predicted/observed trajectories
 p2 = plot(days, beta_true, label="True β from true ODE I(t)", lw=2)
@@ -340,12 +292,23 @@ savefig(pl, joinpath(@__DIR__, "figures", "$(sim_name)_sindy_trajectory.png"))
 
 display(pl)
 
+# Evaluate MSE using the median
+mse = Functions.loss_mse(vec(y_hat), beta_true)
+println(Functions.loss_mse(vec(y_hat), beta_true))
+
 p_beta = plot(days, beta_true, label = "True β", lw = 2)
-plot!(p_beta, days, beta_nn_on_true, label = "Learned β", lw = 2, ls = :dash)
+plot!(p_beta, days, vec(y_hat), label = "Learned β", lw = 2, ls = :dash)
+
+
 
 xlabel!(p_beta, "Day")
 ylabel!(p_beta, "β")
 title!(p_beta, "Learned vs true transmission rate")
+
+x_ann = days[end] * 0.75
+y_ann = maximum(beta_true) * 0.85
+dy = maximum(beta_true) * 0.06
+annotate!(p_beta, x_ann, y_ann, text("MSE = $(round(mse, sigdigits=3))", 9))
 
 display(p_beta)
 
