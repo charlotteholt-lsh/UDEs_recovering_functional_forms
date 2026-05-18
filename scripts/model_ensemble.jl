@@ -79,7 +79,7 @@ function plot_simulation(sim_name, plot_title)
     display(pl)
 
     # Save the plot
-    savefig(pl, datadir("sims", "ude_single", sim_name, "prediction_plot.png"))
+    savefig(pl, datadir("sims", "ude_single", sim_name, "prediction_plotv2.png"))
 
     return pl
 
@@ -88,7 +88,7 @@ end
 #========================================================
 PRODUCE ENSEMBLE PLOTS
 =========================================================# 
-sim_name = "210426_synthesised_use_normalised_infections_optimal_250326"
+sim_name = "synthesised_MA_ODE_solve_rosenbrock"
 plot_title = "Single-trajectory UDE model predictions 100 sims"
 plot_simulation(sim_name, plot_title)
 
