@@ -102,7 +102,8 @@ days = best_results["days"]
 # Extract NN approximation (normalised)
 nn_input = I_nn ./ population
 
-x_hat =permutedims(nn_input)
+x_hat = permutedims(nn_input)
+
 # Evaluate neural network and extract approximation
 y_hat = vec(beta_network(nn_input, p_trained.nn_params, st_nn)[1])
 
